@@ -60,7 +60,9 @@ class ActivationExtractor:
         self.model_name = model_name
         self.model = StandardizedTransformer(model_name, **model_kwargs)
         self.batch_size = batch_size
-        self.default_activations = activations or [f"layers_output:{self.model.num_layers - 1}"]
+        self.default_activations = activations or [
+            f"layers_output:{self.model.num_layers - 1}"
+        ]
 
     @property
     def info(self) -> BaseModel:
@@ -100,7 +102,9 @@ class ActivationExtractor:
         - module_output:layers[4].mlp.gate_proj
         - module_input:layers[4].mlp.down_proj
         """
-        requested = self._resolve_requested_activations(activations=activations, layers=layers)
+        requested = self._resolve_requested_activations(
+            activations=activations, layers=layers
+        )
         parsed_specs = [self._parse_layer_spec(spec) for spec in requested]
         for spec in parsed_specs:
             self._validate_spec(spec)
@@ -161,7 +165,9 @@ class ActivationExtractor:
         return activation
 
     @staticmethod
-    def _as_dataloader(samples: Sequence[str] | DataLoader, batch_size: int) -> DataLoader:
+    def _as_dataloader(
+        samples: Sequence[str] | DataLoader, batch_size: int
+    ) -> DataLoader:
         if isinstance(samples, DataLoader):
             return samples
         return DataLoader(list(samples), batch_size=batch_size, shuffle=False)
@@ -177,7 +183,9 @@ class ActivationExtractor:
         raise TypeError("Each batch must be a string or a list/tuple of strings.")
 
     @staticmethod
-    def _extend_outputs(store: list[torch.Tensor], tensor: torch.Tensor, batch_size: int) -> None:
+    def _extend_outputs(
+        store: list[torch.Tensor], tensor: torch.Tensor, batch_size: int
+    ) -> None:
         if tensor.ndim > 0 and tensor.shape[0] == batch_size:
             for item in tensor.unbind(dim=0):
                 store.append(item)
@@ -198,7 +206,9 @@ class ActivationExtractor:
             try:
                 value = int(value_text)
             except ValueError as exc:
-                raise ValueError(f"Activation '{raw}' has non-integer layer index.") from exc
+                raise ValueError(
+                    f"Activation '{raw}' has non-integer layer index."
+                ) from exc
             return LayerSpec(kind=kind, value=value)
         if kind in self._PATH_KINDS:
             if value_text is None:
@@ -210,13 +220,18 @@ class ActivationExtractor:
             return LayerSpec(kind=kind, value=None)
 
         allowed = ", ".join(self.supported_activation_kinds())
-        raise ValueError(f"Unknown activation kind '{kind}'. Supported kinds: {allowed}.")
+        raise ValueError(
+            f"Unknown activation kind '{kind}'. Supported kinds: {allowed}."
+        )
 
     def _validate_spec(self, spec: LayerSpec) -> None:
         if spec.kind in self._INDEXED_KINDS:
             assert isinstance(spec.value, int)
             self._validate_layer_index(spec.value)
-            if spec.kind == "attention_probabilities" and not self.model.attn_probs_available:
+            if (
+                spec.kind == "attention_probabilities"
+                and not self.model.attn_probs_available
+            ):
                 raise ValueError(
                     "attention_probabilities requested but not enabled. "
                     "Initialize with `enable_attention_probs=True`."
@@ -273,7 +288,9 @@ class ActivationExtractor:
             name = match.group("name")
             idx_text = match.group("idx")
             if not hasattr(current, name):
-                raise ValueError(f"Module path '{path}' is invalid: missing attribute '{name}'.")
+                raise ValueError(
+                    f"Module path '{path}' is invalid: missing attribute '{name}'."
+                )
             current = getattr(current, name)
             if idx_text is not None:
                 current = current[int(idx_text)]
