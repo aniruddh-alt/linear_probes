@@ -26,6 +26,13 @@ def main():
     for name, tensors in result["activations"].items():
         print(f"{name}: samples={len(tensors)} first_shape={tuple(tensors[0].shape)}")
 
+    print(result["labels"])
+    probing_dataset = ProbingDataset.from_extraction_result(
+        result, activation_key="layers_output:0"
+    )
+
+    print(probing_dataset)
+
 
 if __name__ == "__main__":
     main()

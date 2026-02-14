@@ -38,8 +38,10 @@ class ProbingDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
     ) -> "ProbingDataset":
         """Build dataset from one activation stream in an ExtractionResult.
 
-        If labels are not provided, all samples default to 0.
-        Optionally pass positive_indices to flip selected samples to 1.
+        Label resolution order:
+        1. Explicit `labels` argument.
+        2. `extraction["labels"]` if present and fully labeled.
+        3. All-zero labels, optionally flipped via `positive_indices`.
         """
         if activation_key not in extraction["activations"]:
             keys = ", ".join(extraction["activations"].keys())
@@ -49,6 +51,21 @@ class ProbingDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
 
         raw_features = extraction["activations"][activation_key]
         features = [cls._flatten_feature(tensor) for tensor in raw_features]
+
+        if labels is None:
+            extraction_labels = extraction.get("labels")
+            if extraction_labels is not None:
+                if len(extraction_labels) != len(features):
+                    raise ValueError(
+                        "extraction labels length does not match features length: "
+                        f"{len(extraction_labels)} vs {len(features)}."
+                    )
+                if any(label is None for label in extraction_labels):
+                    raise ValueError(
+                        "extraction contains unlabeled samples. Pass explicit `labels` "
+                        "or provide labels when building samples."
+                    )
+                labels = [int(label) for label in extraction_labels]
 
         if labels is None:
             labels = [0] * len(features)
