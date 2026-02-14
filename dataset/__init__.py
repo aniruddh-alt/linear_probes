@@ -1,3 +1,4 @@
-from .samples import ProbingSampleBuilder
+from .samples import ProbingSampleBuilder, SampleBundle, StringDataset
+from .probing_dataset import ProbingDataset
 
-__all__ = ["ProbingSampleBuilder"]
+__all__ = ["ProbingSampleBuilder", "SampleBundle", "StringDataset", "ProbingDataset"]

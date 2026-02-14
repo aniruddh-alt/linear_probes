@@ -5,12 +5,14 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Sequence, cast
 
 import torch
 from nnterp import StandardizedTransformer
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from typing_extensions import TypedDict
+
+from dataset.samples import SampleBundle, StringDataset
 
 
 class BaseModel(TypedDict):
@@ -31,6 +33,8 @@ class ExtractionResult(TypedDict):
     model: BaseModel
     requested: list[str]
     activations: dict[str, list[torch.Tensor]]
+    sample_ids: list[str]
+    labels: list[int | None]
 
 
 class ActivationExtractor:
@@ -49,6 +53,9 @@ class ActivationExtractor:
     }
     _NON_INDEXED_KINDS = {"token_embeddings", "logits", "next_token_probs", "input_ids"}
     _PATH_KINDS = {"module_input", "module_output"}
+    _ALL_LAYER_TOKENS = {"*", "all"}
+    _INT_PATTERN = re.compile(r"^-?\d+$")
+    _INCLUSIVE_RANGE_PATTERN = re.compile(r"^(?P<start>-?\d+)-(?P<end>-?\d+)$")
 
     def __init__(
         self,
@@ -76,7 +83,7 @@ class ActivationExtractor:
 
     def extract(
         self,
-        samples: Sequence[str] | DataLoader,
+        samples: Sequence[str] | Dataset[str] | DataLoader[str] | SampleBundle,
         *,
         activations: list[str] | None = None,
         layers: list[int] | None = None,
@@ -109,7 +116,10 @@ class ActivationExtractor:
         for spec in parsed_specs:
             self._validate_spec(spec)
 
-        loader = self._as_dataloader(samples, batch_size=batch_size or self.batch_size)
+        prompts_source, sample_ids, labels = self._resolve_samples_metadata(samples)
+        loader = self._as_dataloader(
+            prompts_source, batch_size=batch_size or self.batch_size
+        )
         outputs: dict[str, list[torch.Tensor]] = {name: [] for name in requested}
 
         for batch in loader:
@@ -125,8 +135,10 @@ class ActivationExtractor:
 
         result: ExtractionResult = {
             "model": self.info,
-            "requested": requested,
-            "activations": outputs,
+            "requested": list(requested),
+            "activations": {name: outputs[name] for name in requested},
+            "sample_ids": sample_ids,
+            "labels": labels,
         }
         if save_path is not None:
             torch.save(result, Path(save_path))
@@ -142,10 +154,86 @@ class ActivationExtractor:
         if activations is not None and layers is not None:
             raise ValueError("Pass either `activations` or `layers`, not both.")
         if activations is not None:
-            return activations
+            return self._expand_requested_activations(activations)
         if layers is not None:
             return [f"layers_output:{layer}" for layer in layers]
-        return self.default_activations
+        return self._expand_requested_activations(self.default_activations)
+
+    def _expand_requested_activations(self, activations: Sequence[str]) -> list[str]:
+        expanded: list[str] = []
+        for raw in activations:
+            text = raw.strip()
+            match = self._LAYER_PATTERN.match(text)
+            if match is None:
+                raise ValueError(
+                    f"Invalid activation spec '{raw}'. Expected '<kind>' or '<kind>:<value>'."
+                )
+            kind = match.group("kind")
+            value_text = match.group("value")
+
+            if kind in self._INDEXED_KINDS:
+                expanded.extend(self._expand_indexed_activation(kind, value_text))
+            else:
+                expanded.append(text)
+        return expanded
+
+    def _expand_indexed_activation(
+        self, kind: str, value_text: str | None
+    ) -> list[str]:
+        if value_text is None or value_text in self._ALL_LAYER_TOKENS:
+            return [f"{kind}:{layer_idx}" for layer_idx in range(self.model.num_layers)]
+
+        if self._INT_PATTERN.fullmatch(value_text):
+            return [f"{kind}:{int(value_text)}"]
+
+        range_match = self._INCLUSIVE_RANGE_PATTERN.fullmatch(value_text)
+        if range_match is not None:
+            start = int(range_match.group("start"))
+            end = int(range_match.group("end"))
+            step = 1 if end >= start else -1
+            indices = list(range(start, end + step, step))
+            return [f"{kind}:{idx}" for idx in indices]
+
+        if ":" in value_text:
+            indices = self._expand_slice_indices(value_text)
+            return [f"{kind}:{idx}" for idx in indices]
+
+        raise ValueError(
+            f"Unsupported layer selector '{value_text}' for '{kind}'. "
+            "Use an integer (e.g. 5), inclusive range (e.g. 0-4), "
+            "slice (e.g. 0:5 or 0:10:2), or all/*."
+        )
+
+    def _expand_slice_indices(self, value_text: str) -> list[int]:
+        parts = value_text.split(":")
+        if len(parts) not in (2, 3):
+            raise ValueError(
+                f"Invalid slice selector '{value_text}'. Use start:stop[:step]."
+            )
+
+        def parse_or_none(text: str) -> int | None:
+            if text == "":
+                return None
+            if not self._INT_PATTERN.fullmatch(text):
+                raise ValueError(
+                    f"Invalid slice selector '{value_text}'. "
+                    "Slice values must be integers."
+                )
+            return int(text)
+
+        start = parse_or_none(parts[0])
+        stop = parse_or_none(parts[1])
+        step = parse_or_none(parts[2]) if len(parts) == 3 else None
+        if step == 0:
+            raise ValueError("Slice step cannot be 0.")
+
+        indices = list(range(self.model.num_layers))[slice(start, stop, step)]
+        if not indices:
+            raise ValueError(
+                f"Slice selector '{value_text}' produced no layers for model with "
+                f"{self.model.num_layers} layers."
+            )
+        return indices
 
     def _validate_layer_index(self, index: int) -> None:
         lower_bound = -self.model.num_layers
@@ -166,11 +254,38 @@ class ActivationExtractor:
 
     @staticmethod
     def _as_dataloader(
-        samples: Sequence[str] | DataLoader, batch_size: int
-    ) -> DataLoader:
+        samples: Sequence[str] | Dataset[str] | DataLoader[str], batch_size: int
+    ) -> DataLoader[str]:
         if isinstance(samples, DataLoader):
             return samples
-        return DataLoader(list(samples), batch_size=batch_size, shuffle=False)
+        if isinstance(samples, Dataset):
+            return DataLoader(samples, batch_size=batch_size, shuffle=False)
+        return DataLoader(
+            StringDataset(list(samples)), batch_size=batch_size, shuffle=False
+        )
+
+    @staticmethod
+    def _resolve_samples_metadata(
+        samples: Sequence[str] | Dataset[str] | DataLoader[str] | SampleBundle,
+    ) -> tuple[
+        Sequence[str] | Dataset[str] | DataLoader[str], list[str], list[int | None]
+    ]:
+        if isinstance(samples, SampleBundle):
+            return samples.prompts, list(samples.ids), list(samples.labels)
+        if isinstance(samples, DataLoader):
+            raise ValueError(
+                "When passing a DataLoader directly, sample_ids/labels are unavailable. "
+                "Pass a SampleBundle or Sequence/Dataset instead."
+            )
+        if isinstance(samples, Dataset):
+            if not hasattr(samples, "__len__"):
+                raise ValueError(
+                    "Dataset does not expose __len__, cannot build stable sample_ids."
+                )
+            n = len(cast(Sequence[str], samples))
+            return samples, [str(i) for i in range(n)], [None] * n
+        n = len(samples)
+        return samples, [str(i) for i in range(n)], [None] * n
 
     @staticmethod
     def _normalize_batch(batch: Any) -> list[str]:
@@ -258,7 +373,11 @@ class ActivationExtractor:
             module = self._resolve_module_path(str(spec.value))
             return module.output
 
-        layer = int(spec.value)
+        if not isinstance(spec.value, int):
+            raise ValueError(
+                f"Activation kind '{spec.kind}' requires an integer index, got {spec.value!r}."
+            )
+        layer = spec.value
         if spec.kind == "layers_input":
             return self.model.layers_input[layer]
         if spec.kind == "layers_output":
