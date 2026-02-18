@@ -6,11 +6,44 @@ Current focus:
 - activation extraction utilities for transformer models
 - linear probing workflows on extracted representations
 
+## Probe Training Usage
+
+```python
+from torch.utils.data import DataLoader
+
+from dataset import ProbingDataset
+from probes import BinaryLinearProbeTrainer, ProbeTrainConfig
+
+dataset = ProbingDataset.from_extraction_result(
+    extraction_result,
+    activation_key="layers_output:0",
+)
+loader = DataLoader(dataset, batch_size=32, shuffle=True)
+
+trainer = BinaryLinearProbeTrainer(
+    input_dim=dataset[0][0].numel(),
+    config=ProbeTrainConfig(epochs=10, learning_rate=1e-2),
+)
+trainer.fit(loader)
+print(trainer.evaluate(loader))
+```
+
+Load directly from a saved extraction manifest:
+
+```python
+dataset = ProbingDataset.from_extraction_path(
+    "artifacts/activations.pt",
+    activation_key="layers_output:0",
+)
+```
+
+If a manifest contains multiple activation streams, `activation_key` is required.
+
 ## Activation Extraction Usage
 
 ```python
 from dataset import ProbingSampleBuilder
-from models import ActivationExtractor
+from activation import ActivationExtractor
 
 records = [
     {"id": "ex-1", "text": "The capital of France is", "label": 1},

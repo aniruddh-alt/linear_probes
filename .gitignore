@@ -43,6 +43,23 @@ coverage/
 .eslintcache
 .parcel-cache/
 __pycache__/
+.pytest_cache/
+
+# Python virtual environments
+.venv/
+venv/
+
+# Python artifacts
+*.pyc
+*.pyo
+*.pyd
+.mypy_cache/
+.ruff_cache/
+
+# ML artifacts
+artifacts/
+runs/
+checkpoints/
 
 # Optional files
 *.tmp
