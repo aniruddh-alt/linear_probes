@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Any, Sequence
 
 import torch
+from safetensors import safe_open
+from safetensors.torch import load_file
 
 
 def load_extraction_manifest(
@@ -64,69 +66,25 @@ def load_activation_value(
         )
 
     storage = extraction.get("storage")
-    if not (isinstance(storage, dict) and storage.get("mode") == "sharded"):
+    if not (isinstance(storage, dict) and storage.get("mode") == "safetensors"):
         raise TypeError(
             f"Unsupported activation storage format for key '{activation_key}'."
         )
 
-    shard_index = storage.get("shard_index", {})
-    if not isinstance(shard_index, dict):
-        raise ValueError("Sharded storage is missing a valid `shard_index` mapping.")
-    key_shards = shard_index.get(activation_key)
-    if not key_shards:
-        raise KeyError(f"activation_key '{activation_key}' not found in sharded index.")
-    if not isinstance(key_shards, list):
-        raise ValueError(
-            f"Shard index for '{activation_key}' must be a list, got {type(key_shards).__name__}."
+    safetensors_path = storage.get("safetensors_path")
+    if not isinstance(safetensors_path, str):
+        raise ValueError("Safetensors storage is missing `safetensors_path`.")
+
+    if isinstance(map_location, torch.device):
+        device = str(map_location)
+    else:
+        device = str(map_location)
+    tensors = load_file(safetensors_path, device=device)
+    if activation_key not in tensors:
+        raise KeyError(
+            f"activation_key '{activation_key}' not found in safetensors storage."
         )
-
-    chunks: list[torch.Tensor] = []
-    expected_start = 0
-    for shard_idx, shard in enumerate(key_shards):
-        if not isinstance(shard, dict):
-            raise ValueError(
-                f"Shard metadata at index {shard_idx} for '{activation_key}' must be a dict."
-            )
-        if "path" not in shard or "start" not in shard or "end" not in shard:
-            raise ValueError(
-                f"Shard metadata at index {shard_idx} for '{activation_key}' must contain "
-                "`path`, `start`, and `end`."
-            )
-
-        start = int(shard["start"])
-        end = int(shard["end"])
-        if start != expected_start:
-            raise ValueError(
-                f"Non-contiguous shard index for '{activation_key}': expected start "
-                f"{expected_start}, got {start} at shard {shard_idx}."
-            )
-        if end <= start:
-            raise ValueError(
-                f"Invalid shard bounds for '{activation_key}' at shard {shard_idx}: "
-                f"start={start}, end={end}."
-            )
-
-        shard_path = Path(shard["path"])
-        tensor = torch.load(shard_path, map_location=map_location)
-        if not isinstance(tensor, torch.Tensor):
-            raise TypeError(
-                f"Shard file '{shard_path}' for '{activation_key}' did not contain a tensor."
-            )
-
-        rows = _resolve_num_items(tensor)
-        expected_rows = end - start
-        if rows != expected_rows:
-            raise ValueError(
-                f"Shard row count mismatch for '{activation_key}' at shard {shard_idx}: "
-                f"index expects {expected_rows}, tensor has {rows}."
-            )
-
-        chunks.append(tensor)
-        expected_start = end
-
-    if len(chunks) == 1:
-        return chunks[0].contiguous()
-    return torch.cat(chunks, dim=0).contiguous()
+    return tensors[activation_key]
 
 
 def _available_activation_keys(extraction: dict[str, Any]) -> list[str]:
@@ -145,17 +103,15 @@ def _available_activation_keys(extraction: dict[str, Any]) -> list[str]:
 
     storage = extraction.get("storage")
     if isinstance(storage, dict):
-        shard_index = storage.get("shard_index", {})
-        if isinstance(shard_index, dict):
-            for key in shard_index.keys():
-                key_text = str(key)
-                if key_text not in ordered:
-                    ordered.append(key_text)
+        if storage.get("mode") == "safetensors":
+            safetensors_path = storage.get("safetensors_path")
+            if isinstance(safetensors_path, str):
+                with safe_open(
+                    safetensors_path, framework="pt", device="cpu"
+                ) as handle:
+                    for key in handle.keys():
+                        key_text = str(key)
+                        if key_text not in ordered:
+                            ordered.append(key_text)
 
     return ordered
-
-
-def _resolve_num_items(activation: torch.Tensor) -> int:
-    if activation.ndim == 0:
-        return 1
-    return int(activation.shape[0])

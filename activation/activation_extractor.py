@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Sequence, cast
 
 import torch
+from safetensors.torch import save_file
 from torch.utils.data import DataLoader, Dataset
 from typing_extensions import TypedDict
 
@@ -230,8 +231,6 @@ class ActivationExtractor:
         result["storage"] = self._persist_result(
             result=result,
             save_path=Path(self.config.save_path),
-            shard_threshold_bytes=self.config.shard_threshold_bytes,
-            shard_target_bytes=self.config.shard_target_bytes,
         )
         return result
 
@@ -548,112 +547,39 @@ class ActivationExtractor:
             f"Expected first dimension size {batch_size}, got shape {tuple(tensor.shape)}."
         )
 
-    @staticmethod
-    def _tensor_nbytes(tensor: torch.Tensor) -> int:
-        return int(tensor.nelement()) * int(tensor.element_size())
-
-    @staticmethod
-    def _sanitize_activation_key(key: str) -> str:
-        return re.sub(r"[^A-Za-z0-9_.-]+", "_", key)
-
-    @staticmethod
-    def _resolve_num_items(activation: torch.Tensor) -> int:
-        if activation.ndim == 0:
-            return 1
-        return int(activation.shape[0])
-
     def _persist_result(
         self,
         *,
         result: ExtractionResult,
         save_path: Path,
-        shard_threshold_bytes: int,
-        shard_target_bytes: int,
     ) -> dict[str, Any]:
         save_path.parent.mkdir(parents=True, exist_ok=True)
-        outputs = result["activations"]
-        total_bytes = self._estimate_total_activation_bytes(outputs)
-
-        if total_bytes <= shard_threshold_bytes:
-            storage: dict[str, Any] = {
-                "mode": "single_pt",
-                "path": str(save_path),
-                "total_activation_bytes": total_bytes,
-            }
-            to_save = dict(result)
-            to_save["storage"] = storage
-            torch.save(to_save, save_path)
-            return storage
-
-        manifest_path, shard_dir = self._resolve_shard_paths(save_path)
-        shard_index: dict[str, list[dict[str, Any]]] = {}
-
-        for key, tensor in outputs.items():
-            num_items = self._resolve_num_items(tensor)
-            rows_per_shard = self._rows_per_shard(tensor, shard_target_bytes)
-            key_dir = shard_dir / self._sanitize_activation_key(key)
-            key_dir.mkdir(parents=True, exist_ok=True)
-            shards: list[dict[str, Any]] = []
-            start = 0
-            shard_idx = 0
-            while start < num_items:
-                end = min(num_items, start + rows_per_shard)
-                shard_tensor = (
-                    tensor if tensor.ndim == 0 else tensor[start:end]
-                ).contiguous()
-                shard_path = key_dir / f"shard_{shard_idx:05d}.pt"
-                torch.save(shard_tensor, shard_path)
-                shards.append(
-                    {
-                        "path": str(shard_path),
-                        "start": start,
-                        "end": end,
-                        "shape": tuple(shard_tensor.shape),
-                        "dtype": str(shard_tensor.dtype),
-                    }
-                )
-                start = end
-                shard_idx += 1
-            shard_index[key] = shards
-
+        manifest_path, safetensors_path = self._resolve_storage_paths(save_path)
+        tensors = {
+            key: tensor.contiguous() for key, tensor in result["activations"].items()
+        }
+        save_file(tensors, str(safetensors_path))
+        storage: dict[str, Any] = {
+            "mode": "safetensors",
+            "manifest_path": str(manifest_path),
+            "safetensors_path": str(safetensors_path),
+        }
         manifest: ExtractionResult = {
             "model": result["model"],
             "requested": result["requested"],
             "activations": {},
             "sample_ids": result["sample_ids"],
             "labels": result["labels"],
-            "storage": {
-                "mode": "sharded",
-                "manifest_path": str(manifest_path),
-                "shard_dir": str(shard_dir),
-                "total_activation_bytes": total_bytes,
-                "shard_threshold_bytes": shard_threshold_bytes,
-                "shard_target_bytes": shard_target_bytes,
-                "shard_index": shard_index,
-            },
+            "storage": storage,
         }
         torch.save(manifest, manifest_path)
-        return cast(dict[str, Any], manifest["storage"])
-
-    @classmethod
-    def _estimate_total_activation_bytes(cls, outputs: dict[str, torch.Tensor]) -> int:
-        return sum(cls._tensor_nbytes(t) for t in outputs.values())
+        return cast(dict[str, Any], storage)
 
     @staticmethod
-    def _rows_per_shard(tensor: torch.Tensor, target_bytes: int) -> int:
-        if tensor.ndim == 0 or int(tensor.shape[0]) == 0:
-            return 1
-        row_bytes = int(tensor[0].nelement()) * int(tensor.element_size())
-        if row_bytes <= 0:
-            return int(tensor.shape[0])
-        return max(1, target_bytes // row_bytes)
-
-    @staticmethod
-    def _resolve_shard_paths(save_path: Path) -> tuple[Path, Path]:
-        if save_path.suffix:
-            manifest_path = save_path
-            shard_dir = save_path.parent / f"{save_path.stem}_shards"
-            return manifest_path, shard_dir
-        manifest_path = save_path / "manifest.pt"
-        shard_dir = save_path / "shards"
-        return manifest_path, shard_dir
+    def _resolve_storage_paths(save_path: Path) -> tuple[Path, Path]:
+        base_path = (
+            save_path.with_suffix("") if save_path.suffix == ".pt" else save_path
+        )
+        manifest_path = base_path.parent / f"{base_path.name}_manifest.pt"
+        safetensors_path = base_path.with_suffix(".safetensors")
+        return manifest_path, safetensors_path

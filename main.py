@@ -76,8 +76,8 @@ def main() -> None:
     model_config = ModelConfig(model_name="EleutherAI/pythia-70m")
     activation_config = ActivationConfig(
         model_config=model_config,
-        save_path="artifacts/activations.pt",
-        activations=["layers_output:5"],
+        save_path="artifacts/activations",
+        activations=[f"layers_output:{i}" for i in range(6)],
         batch_size=8,
         token_index=-1,
         to_cpu=True,
@@ -92,7 +92,7 @@ def main() -> None:
         )
 
     probing_dataset = ProbingDataset.from_extraction_path(
-        "artifacts/activations.pt",
+        "artifacts/activations_manifest.pt",
         activation_key="layers_output:5",
     )
     train_size = int(0.8 * len(probing_dataset))

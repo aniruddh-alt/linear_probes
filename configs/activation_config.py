@@ -20,8 +20,6 @@ class ActivationConfig:
         token_index: Index of the token to extract activations for.
         remote: Whether to extract activations from a remote model.
         to_cpu: Whether to move activations to CPU.
-        shard_threshold_bytes: Threshold for sharding activations.
-        shard_target_bytes: Target size for sharded activations.
     """
 
     model_config: ModelConfig
@@ -31,13 +29,7 @@ class ActivationConfig:
     token_index: int | None = -1
     remote: bool = False
     to_cpu: bool = True
-    shard_threshold_bytes: int = 512 * 1024 * 1024
-    shard_target_bytes: int = 128 * 1024 * 1024
 
     def __post_init__(self) -> None:
         if self.batch_size <= 0:
             raise ValueError("batch_size must be > 0.")
-        if self.shard_threshold_bytes <= 0:
-            raise ValueError("shard_threshold_bytes must be > 0.")
-        if self.shard_target_bytes <= 0:
-            raise ValueError("shard_target_bytes must be > 0.")

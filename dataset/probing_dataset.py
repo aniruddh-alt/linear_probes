@@ -58,8 +58,7 @@ class ProbingDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
         storage = extraction.get("storage")
         if activation_key not in extraction["activations"] and not (
             isinstance(storage, dict)
-            and storage.get("mode") == "sharded"
-            and activation_key in storage.get("shard_index", {})
+            and storage.get("mode") == "safetensors"
         ):
             keys = ", ".join(extraction["activations"].keys())
             raise KeyError(

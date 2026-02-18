@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
+from safetensors.torch import save_file
 import torch
 from torch.utils.data import DataLoader
 
@@ -81,50 +82,25 @@ class ActivationExtractorTests(unittest.TestCase):
                 tensor, token_index=0, kind="module_output"
             )
 
-    def test_storage_helper_loads_sharded_activation(self) -> None:
+    def test_storage_helper_loads_safetensors_activation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            shard_a = root / "a.pt"
-            shard_b = root / "b.pt"
-            torch.save(torch.tensor([[1.0], [2.0]]), shard_a)
-            torch.save(torch.tensor([[3.0]]), shard_b)
+            safetensors_path = root / "activations.safetensors"
+            save_file(
+                {"layers_output:0": torch.tensor([[1.0], [2.0], [3.0]])},
+                str(safetensors_path),
+            )
             extraction = {
                 "requested": ["layers_output:0"],
                 "activations": {},
                 "storage": {
-                    "mode": "sharded",
-                    "shard_index": {
-                        "layers_output:0": [
-                            {"path": str(shard_a), "start": 0, "end": 2},
-                            {"path": str(shard_b), "start": 2, "end": 3},
-                        ]
-                    },
+                    "mode": "safetensors",
+                    "safetensors_path": str(safetensors_path),
                 },
             }
 
             loaded = load_activation_value(extraction, activation_key="layers_output:0")
             self.assertTrue(torch.equal(loaded, torch.tensor([[1.0], [2.0], [3.0]])))
-
-    def test_storage_helper_raises_on_non_contiguous_shards(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            root = Path(tmp_dir)
-            shard = root / "a.pt"
-            torch.save(torch.tensor([[1.0]]), shard)
-            extraction = {
-                "requested": ["layers_output:0"],
-                "activations": {},
-                "storage": {
-                    "mode": "sharded",
-                    "shard_index": {
-                        "layers_output:0": [
-                            {"path": str(shard), "start": 1, "end": 2},
-                        ]
-                    },
-                },
-            }
-
-            with self.assertRaisesRegex(ValueError, "Non-contiguous shard index"):
-                load_activation_value(extraction, activation_key="layers_output:0")
 
     def test_storage_helper_resolves_implicit_key_rules(self) -> None:
         extraction = {
