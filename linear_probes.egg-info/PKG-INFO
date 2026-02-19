@@ -1,3 +1,17 @@
+Metadata-Version: 2.4
+Name: linear-probes
+Version: 0.1.0
+Summary: Mechanistic interpretability toolkit for activation extraction and probing.
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: nnterp>=1.2.2
+Requires-Dist: safetensors
+Requires-Dist: torch
+Requires-Dist: typing_extensions
+Requires-Dist: torchmetrics
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+
 # Mech Interp Toolkit
 
 This repository is a mechanistic interpretability toolkit.

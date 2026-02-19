@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 import torch
 from safetensors import safe_open
@@ -23,7 +23,7 @@ def load_extraction_manifest(
 
 
 def resolve_activation_key(
-    extraction: dict[str, Any], activation_key: str | None = None
+    extraction: Mapping[str, Any], activation_key: str | None = None
 ) -> str:
     """Resolve activation key with explicit handling for ambiguous manifests."""
     keys = _available_activation_keys(extraction)
@@ -47,7 +47,7 @@ def resolve_activation_key(
 
 
 def load_activation_value(
-    extraction: dict[str, Any],
+    extraction: Mapping[str, Any],
     *,
     activation_key: str,
     map_location: str | torch.device = "cpu",
@@ -87,7 +87,7 @@ def load_activation_value(
     return tensors[activation_key]
 
 
-def _available_activation_keys(extraction: dict[str, Any]) -> list[str]:
+def _available_activation_keys(extraction: Mapping[str, Any]) -> list[str]:
     requested = extraction.get("requested")
     ordered: list[str] = []
 

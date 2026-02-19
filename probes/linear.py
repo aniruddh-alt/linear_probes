@@ -5,16 +5,25 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import replace
 from statistics import mean, stdev
-from typing import Any
+from typing import Any, cast
 
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
+from torchmetrics.classification import (  # type: ignore[import-untyped]
+    BinaryAccuracy,
+    BinaryAUROC,
+    BinaryF1Score,
+    BinaryPrecision,
+    BinaryRecall,
+)
 
-from configs.probe_config import ProbeTrainConfig
+from configs import ProbeConfig
 
 
 class LinearProbe(nn.Module):
+    """Base linear probe."""
+
     def __init__(self, input_dim: int, output_dim: int):
         super().__init__()
         self.linear = nn.Linear(input_dim, output_dim)
@@ -26,8 +35,8 @@ class LinearProbe(nn.Module):
 class BinaryLinearProbeTrainer:
     """End-to-end trainer/evaluator for binary linear probes."""
 
-    def __init__(self, input_dim: int, config: ProbeTrainConfig | None = None):
-        self.config = config or ProbeTrainConfig()
+    def __init__(self, input_dim: int, config: ProbeConfig | None = None):
+        self.config = config or ProbeConfig()
         if self.config.seed is not None:
             torch.manual_seed(self.config.seed)
         self.device = torch.device(self.config.device or "cpu")
@@ -38,13 +47,25 @@ class BinaryLinearProbeTrainer:
             lr=self.config.learning_rate,
             weight_decay=self.config.weight_decay,
         )
+        self.accuracy_metric = BinaryAccuracy(threshold=self.config.threshold).to(
+            self.device
+        )
+        self.precision_metric = BinaryPrecision(
+            threshold=self.config.threshold, zero_division=0
+        ).to(self.device)
+        self.recall_metric = BinaryRecall(
+            threshold=self.config.threshold, zero_division=0
+        ).to(self.device)
+        self.f1_metric = BinaryF1Score(
+            threshold=self.config.threshold, zero_division=0
+        ).to(self.device)
 
     def fit(
         self,
         train_loader: DataLoader[tuple[torch.Tensor, torch.Tensor]],
         val_loader: DataLoader[tuple[torch.Tensor, torch.Tensor]] | None = None,
-    ) -> dict[str, list[float]]:
-        history: dict[str, list[float]] = {"train_loss": []}
+    ) -> dict[str, list[float | tuple[float, float]]]:
+        history: dict[str, list[float | tuple[float, float]]] = {"train_loss": []}
         if val_loader is not None:
             history["val_loss"] = []
             history["val_accuracy"] = []
@@ -65,6 +86,7 @@ class BinaryLinearProbeTrainer:
                 batch_size = x.shape[0]
                 running_loss += loss.item() * batch_size
                 total += batch_size
+
             history["train_loss"].append(running_loss / max(total, 1))
 
             if val_loader is not None:
@@ -92,12 +114,15 @@ class BinaryLinearProbeTrainer:
         self.model.eval()
         running_loss = 0.0
         total = 0
-        correct = 0
-        total_positive = 0
-        predicted_positive = 0
-        true_positive = 0
+
+        self.accuracy_metric.reset()
+        self.precision_metric.reset()
+        self.recall_metric.reset()
+        self.f1_metric.reset()
+
         all_probs: list[torch.Tensor] = []
         all_labels: list[torch.Tensor] = []
+
         for features, labels in data_loader:
             x = features.to(self.device)
             y = labels.to(self.device).float().unsqueeze(1)
@@ -105,12 +130,11 @@ class BinaryLinearProbeTrainer:
             loss = self.criterion(logits, y)
 
             probs = torch.sigmoid(logits).squeeze(-1)
-            preds = (probs >= self.config.threshold).long()
             batch_labels = labels.to(self.device).long()
-            correct += int((preds == batch_labels).sum().item())
-            total_positive += int(batch_labels.sum().item())
-            predicted_positive += int(preds.sum().item())
-            true_positive += int(((preds == 1) & (batch_labels == 1)).sum().item())
+            self.accuracy_metric.update(probs, batch_labels)
+            self.precision_metric.update(probs, batch_labels)
+            self.recall_metric.update(probs, batch_labels)
+            self.f1_metric.update(probs, batch_labels)
             all_probs.append(probs.detach().cpu())
             all_labels.append(batch_labels.detach().cpu())
 
@@ -118,22 +142,30 @@ class BinaryLinearProbeTrainer:
             running_loss += loss.item() * batch_size
             total += batch_size
 
-        precision = true_positive / max(predicted_positive, 1)
-        recall = true_positive / max(total_positive, 1)
-        if precision + recall > 0:
-            f1 = 2 * precision * recall / (precision + recall)
-        else:
-            f1 = 0.0
         probs_tensor = (
-            torch.cat(all_probs, dim=0) if all_probs else torch.empty((0,), dtype=torch.float32)
+            torch.cat(all_probs, dim=0)
+            if all_probs
+            else torch.empty((0,), dtype=torch.float32)
         )
         labels_tensor = (
-            torch.cat(all_labels, dim=0) if all_labels else torch.empty((0,), dtype=torch.long)
+            torch.cat(all_labels, dim=0)
+            if all_labels
+            else torch.empty((0,), dtype=torch.long)
         )
+        if probs_tensor.numel() == 0:
+            accuracy = 0.0
+            precision = 0.0
+            recall = 0.0
+            f1 = 0.0
+        else:
+            accuracy = float(self.accuracy_metric.compute().item())
+            precision = float(self.precision_metric.compute().item())
+            recall = float(self.recall_metric.compute().item())
+            f1 = float(self.f1_metric.compute().item())
         auroc = _binary_auroc(probs_tensor, labels_tensor)
         return {
             "loss": running_loss / max(total, 1),
-            "accuracy": correct / max(total, 1),
+            "accuracy": accuracy,
             "precision": precision,
             "recall": recall,
             "f1": f1,
@@ -159,7 +191,9 @@ class BinaryLinearProbeTrainer:
             sample_probs = probs[sample_idx]
             sample_labels = labels[sample_idx]
             sample_preds = (sample_probs >= self.config.threshold).long()
-            acc_samples.append(float((sample_preds == sample_labels).float().mean().item()))
+            acc_samples.append(
+                float((sample_preds == sample_labels).float().mean().item())
+            )
             auroc_samples.append(_binary_auroc(sample_probs, sample_labels))
         acc_ci = _percentile_interval(acc_samples, ci_low, ci_high)
         auroc_ci = _percentile_interval(auroc_samples, ci_low, ci_high)
@@ -174,7 +208,7 @@ def run_probe_with_controls(
     input_dim: int,
     train_loader: DataLoader[tuple[torch.Tensor, torch.Tensor]],
     eval_loader: DataLoader[tuple[torch.Tensor, torch.Tensor]],
-    config: ProbeTrainConfig | None = None,
+    config: ProbeConfig | None = None,
     seeds: Sequence[int] = (0,),
 ) -> dict[str, Any]:
     """Train/evaluate probe with multi-seed and baseline controls.
@@ -183,7 +217,7 @@ def run_probe_with_controls(
     - shuffled_labels: train on a random permutation of training labels.
     - random_features: train/eval on Gaussian random features.
     """
-    base_config = config or ProbeTrainConfig()
+    base_config = config or ProbeConfig()
     train_x, train_y = _loader_to_tensors(train_loader)
     eval_x, eval_y = _loader_to_tensors(eval_loader)
 
@@ -202,8 +236,12 @@ def run_probe_with_controls(
         generator = torch.Generator().manual_seed(int(seed) + 1_000)
         permutation = torch.randperm(len(train_y), generator=generator)
         shuffled_y = train_y[permutation]
-        shuffled_trainer = BinaryLinearProbeTrainer(input_dim=input_dim, config=run_config)
-        shuffled_trainer.fit(_tensor_loader(train_x, shuffled_y, train_loader.batch_size))
+        shuffled_trainer = BinaryLinearProbeTrainer(
+            input_dim=input_dim, config=run_config
+        )
+        shuffled_trainer.fit(
+            _tensor_loader(train_x, shuffled_y, train_loader.batch_size)
+        )
         shuffled_runs.append(
             shuffled_trainer.evaluate(
                 _tensor_loader(eval_x, eval_y, eval_loader.batch_size)
@@ -214,7 +252,9 @@ def run_probe_with_controls(
             train_x.shape, generator=generator, dtype=train_x.dtype
         )
         rand_eval_x = torch.randn(eval_x.shape, generator=generator, dtype=eval_x.dtype)
-        random_trainer = BinaryLinearProbeTrainer(input_dim=input_dim, config=run_config)
+        random_trainer = BinaryLinearProbeTrainer(
+            input_dim=input_dim, config=run_config
+        )
         random_trainer.fit(
             _tensor_loader(rand_train_x, train_y, train_loader.batch_size)
         )
@@ -243,10 +283,9 @@ def _binary_auroc(probs: torch.Tensor, labels: torch.Tensor) -> float:
     n_neg = int(neg_mask.sum().item())
     if n_pos == 0 or n_neg == 0:
         return 0.5
-    ranks = torch.argsort(torch.argsort(probs)) + 1
-    pos_rank_sum = float(ranks[pos_mask].sum().item())
-    u_stat = pos_rank_sum - (n_pos * (n_pos + 1) / 2.0)
-    return float(u_stat / (n_pos * n_neg))
+    metric = BinaryAUROC()
+    score = metric(probs.float().cpu(), labels.cpu())
+    return float(score.item())
 
 
 def _percentile_interval(
@@ -269,20 +308,27 @@ def _loader_to_tensors(
         features.append(batch_features.detach().cpu().float())
         labels.append(batch_labels.detach().cpu().long())
     if not features:
-        return torch.empty((0, 0), dtype=torch.float32), torch.empty((0,), dtype=torch.long)
+        return torch.empty((0, 0), dtype=torch.float32), torch.empty(
+            (0,), dtype=torch.long
+        )
     return torch.cat(features, dim=0), torch.cat(labels, dim=0)
 
 
 def _tensor_loader(
     features: torch.Tensor, labels: torch.Tensor, batch_size: int | None
 ) -> DataLoader[tuple[torch.Tensor, torch.Tensor]]:
-    resolved_batch_size = int(batch_size) if isinstance(batch_size, int) and batch_size > 0 else 32
+    resolved_batch_size = (
+        int(batch_size) if isinstance(batch_size, int) and batch_size > 0 else 32
+    )
     dataset = torch.utils.data.TensorDataset(features, labels)
-    return DataLoader(dataset, batch_size=resolved_batch_size, shuffle=True)
+    return cast(
+        DataLoader[tuple[torch.Tensor, torch.Tensor]],
+        DataLoader(dataset, batch_size=resolved_batch_size, shuffle=True),
+    )
 
 
 def _aggregate_metrics(
-    runs: Sequence[dict[str, float | tuple[float, float]]]
+    runs: Sequence[dict[str, float | tuple[float, float]]],
 ) -> dict[str, float]:
     if not runs:
         return {}
@@ -291,7 +337,7 @@ def _aggregate_metrics(
         for key, value in run.items():
             if isinstance(value, tuple):
                 continue
-            grouped.setdefault(key, []).append(float(value))
+            grouped.setdefault(key, []).append(value)
     summary: dict[str, float] = {}
     for key, values in grouped.items():
         summary[f"{key}_mean"] = mean(values)

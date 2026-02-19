@@ -1,5 +1,13 @@
-from .activation_config import ActivationConfig
-from .model_config import ModelConfig
-from .probe_config import ProbeTrainConfig
+from .types import (
+    ActivationConfig,
+    LayerProbeSweepConfig,
+    ModelConfig,
+    ProbeConfig,
+)
 
-__all__ = ["ActivationConfig", "ModelConfig", "ProbeTrainConfig"]
+__all__ = [
+    "ActivationConfig",
+    "ModelConfig",
+    "ProbeConfig",
+    "LayerProbeSweepConfig",
+]

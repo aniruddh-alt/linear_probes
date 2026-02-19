@@ -4,21 +4,15 @@ from __future__ import annotations
 
 import csv
 import json
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterable, Sequence
 
 from torch.utils.data import DataLoader, Dataset
 
+from dataset.types import SampleBundle
+
 Record = dict[str, Any] | str
 Preprocessor = Callable[[str], str]
-
-
-@dataclass
-class SampleBundle:
-    prompts: Dataset[str]
-    labels: list[int | None]
-    ids: list[str]
 
 
 class StringDataset(Dataset[str]):

@@ -9,6 +9,7 @@ dependencies = [
     "safetensors",
     "torch",
     "typing_extensions",
+    "torchmetrics",
 ]
 
 [project.optional-dependencies]

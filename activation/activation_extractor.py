@@ -3,39 +3,22 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, fields
+from dataclasses import fields
 from pathlib import Path
 from typing import Any, Sequence, cast
 
 import torch
 from safetensors.torch import save_file
 from torch.utils.data import DataLoader, Dataset
-from typing_extensions import TypedDict
 
+from activation.types import ExtractionResult, LayerSpec, ModelMetadata
 from configs import ActivationConfig
 from dataset.samples import SampleBundle
 
 try:
     from nnterp import StandardizedTransformer
-except ModuleNotFoundError as exc:  # pragma: no cover - exercised in import-only tests
+except ModuleNotFoundError:  # pragma: no cover - exercised when optional dep missing.
     StandardizedTransformer = None  # type: ignore[assignment]
-    _NNTERP_IMPORT_ERROR = exc
-else:
-    _NNTERP_IMPORT_ERROR = None
-
-
-class BaseModel(TypedDict):
-    name: str
-    num_layers: int
-    hidden_size: int
-    num_heads: int
-    vocab_size: int
-
-
-@dataclass(frozen=True)
-class LayerSpec:
-    kind: str
-    value: int | str | None = None
 
 
 class SequenceDataset(Dataset[str]):
@@ -49,15 +32,6 @@ class SequenceDataset(Dataset[str]):
 
     def __getitem__(self, index: int) -> str:
         return self.samples[index]
-
-
-class ExtractionResult(TypedDict):
-    model: BaseModel
-    requested: list[str]
-    activations: dict[str, torch.Tensor]
-    sample_ids: list[str]
-    labels: list[int | None]
-    storage: dict[str, Any]
 
 
 class ActivationExtractor:
@@ -87,11 +61,12 @@ class ActivationExtractor:
     )
 
     def __init__(self, config: ActivationConfig):
-        if StandardizedTransformer is None:
+        transformer_cls = StandardizedTransformer
+        if transformer_cls is None:
             raise ModuleNotFoundError(
-                "ActivationExtractor requires the `nnterp` package. "
-                "Install it before creating an extractor instance."
-            ) from _NNTERP_IMPORT_ERROR
+                "ActivationExtractor requires optional dependency 'nnterp'. "
+                "Install project dependencies before constructing the extractor."
+            )
         self.config = config
         mc = config.model_config
         self.model_name = mc.model_name
@@ -103,7 +78,7 @@ class ActivationExtractor:
             and (f.name not in self._BOOL_FLAGS or getattr(mc, f.name))
         }
         model_kwargs.update(mc.additional_kwargs)
-        self.model = StandardizedTransformer(mc.model_name, **model_kwargs)
+        self.model = transformer_cls(mc.model_name, **model_kwargs)
         self.batch_size = config.batch_size
         self.default_activations = (
             list(config.activations)
@@ -112,7 +87,7 @@ class ActivationExtractor:
         )
 
     @property
-    def info(self) -> BaseModel:
+    def info(self) -> ModelMetadata:
         return {
             "name": self.model_name,
             "num_layers": int(self.model.num_layers),

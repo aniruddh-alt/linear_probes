@@ -5,7 +5,8 @@ import unittest
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 
-from probes.linear import BinaryLinearProbeTrainer, ProbeTrainConfig, run_probe_with_controls
+from configs import ProbeConfig
+from probes.linear import BinaryLinearProbeTrainer, run_probe_with_controls
 
 
 class LinearProbeTrainerTests(unittest.TestCase):
@@ -17,7 +18,7 @@ class LinearProbeTrainerTests(unittest.TestCase):
 
         trainer = BinaryLinearProbeTrainer(
             input_dim=4,
-            config=ProbeTrainConfig(epochs=25, learning_rate=0.1),
+            config=ProbeConfig(epochs=25, learning_rate=0.1),
         )
         history = trainer.fit(loader, val_loader=loader)
         metrics = trainer.evaluate(loader)
@@ -37,7 +38,7 @@ class LinearProbeTrainerTests(unittest.TestCase):
             input_dim=3,
             train_loader=loader,
             eval_loader=loader,
-            config=ProbeTrainConfig(epochs=5, learning_rate=0.1),
+            config=ProbeConfig(epochs=5, learning_rate=0.1),
             seeds=(0, 1),
         )
 

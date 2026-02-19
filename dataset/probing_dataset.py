@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Any, Iterable, Mapping, Sequence
 
 import torch
 from torch.utils.data import Dataset
@@ -42,7 +42,7 @@ class ProbingDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
     @classmethod
     def from_extraction_result(
         cls,
-        extraction: dict,
+        extraction: Mapping[str, Any],
         *,
         activation_key: str,
         labels: Sequence[int] | None = None,
@@ -158,7 +158,7 @@ class ProbingDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
 
     @classmethod
     def _resolve_activation_tensor(
-        cls, extraction: dict, *, activation_key: str
+        cls, extraction: Mapping[str, Any], *, activation_key: str
     ) -> torch.Tensor:
         raw_features = load_activation_value(
             extraction,

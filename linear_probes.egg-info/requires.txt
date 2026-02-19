@@ -1,0 +1,8 @@
+nnterp>=1.2.2
+safetensors
+torch
+typing_extensions
+torchmetrics
+
+[dev]
+pytest
