@@ -5,9 +5,26 @@ from .types import (
     ProbeConfig,
 )
 
+from core.configs import (
+    BaseConfig,
+    ExtractionParams,
+    ModelParams,
+    OutputParams,
+    ProbeParams,
+    RunConfig,
+    SplitParams,
+)
+
 __all__ = [
     "ActivationConfig",
-    "ModelConfig",
-    "ProbeConfig",
+    "BaseConfig",
+    "ExtractionParams",
     "LayerProbeSweepConfig",
+    "ModelConfig",
+    "ModelParams",
+    "OutputParams",
+    "ProbeConfig",
+    "ProbeParams",
+    "RunConfig",
+    "SplitParams",
 ]
