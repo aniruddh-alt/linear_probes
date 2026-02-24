@@ -1,0 +1,30 @@
+# Quickstart: refusal probe sweep on Qwen2.5-1.5B
+run_name: quickstart_probe
+seed: 0
+action: probe_sweep
+
+model:
+  model_name: Qwen/Qwen2.5-1.5B-Instruct
+
+extraction:
+  batch_size: 4
+  token_index: -1
+  to_cpu: true
+
+probe:
+  epochs: 20
+  learning_rate: 0.01
+  weight_decay: 0.01
+  threshold: 0.5
+  early_stopping_patience: 5
+  bootstrap_samples: 0
+
+split:
+  train_fraction: 0.7
+  val_fraction: 0.15
+  test_fraction: 0.15
+  split_seed: 0
+
+output:
+  output_dir: artifacts
+  save_plots: true
