@@ -6,27 +6,49 @@ Current focus:
 - activation extraction utilities for transformer models
 - linear probing workflows on extracted representations
 
-## Probe Training Usage
+## Probe Training Usage (Train/Val/Test Discipline)
 
 ```python
 from torch.utils.data import DataLoader
 
-from dataset import ProbingDataset
-from configs import ProbeConfig
-from probes import BinaryLinearProbeTrainer
+from dataset import ProbingDataset, ProbingSampleBuilder
+from configs import LayerProbeSweepConfig, ProbeConfig
+from probes import LayerProbeSweepRunner
 
 dataset = ProbingDataset.from_extraction_result(
     extraction_result,
     activation_key="layers_output:0",
 )
-loader = DataLoader(dataset, batch_size=32, shuffle=True)
-
-trainer = BinaryLinearProbeTrainer(
-    input_dim=dataset[0][0].numel(),
-    config=ProbeConfig(epochs=10, learning_rate=1e-2),
+records = [
+    {"id": extraction_result["sample_ids"][i], "text": f"sample-{i}", "label": int(extraction_result["labels"][i])}
+    for i in range(len(extraction_result["labels"]))
+]
+bundle = ProbingSampleBuilder.from_iterable(records).to_samples(text_key="text")
+train_idx, val_idx, test_idx = bundle.train_val_test_split(
+    train_fraction=0.7,
+    val_fraction=0.15,
+    test_fraction=0.15,
+    seed=0,
+    group_ids=bundle.ids,
 )
-trainer.fit(loader)
-print(trainer.evaluate(loader))
+sweep = LayerProbeSweepRunner(
+    LayerProbeSweepConfig(
+        probe=ProbeConfig(epochs=10, learning_rate=1e-2),
+        activation_targets=["layers_output:0"],
+    )
+)
+result = sweep.run(
+    extraction_result,
+    train_indices=train_idx,
+    val_indices=val_idx,
+    test_indices=test_idx,
+    group_ids=extraction_result["sample_ids"],
+    # default write-once behavior: fails if path already exists
+    manifest_path="artifacts/probe_runs/run_manifest.json",
+)
+print(result.best_key)
+print(result.test_metrics)
+print(result.controls)
 ```
 
 Load directly from a saved extraction manifest:
@@ -39,6 +61,16 @@ dataset = ProbingDataset.from_extraction_path(
 ```
 
 If a manifest contains multiple activation streams, `activation_key` is required.
+
+`LayerProbeSweepRunner.run(...)` requires explicit `train_indices`, `val_indices`, and
+`test_indices` and evaluates test metrics only after selecting the best layer on validation.
+If `manifest_path` already exists, the run fails by default. Use
+`manifest_overwrite=True` to replace it or `manifest_unique_path=True` to auto-suffix
+the filename.
+
+`SampleBundle.train_val_test_split(...)` supports explicit `group_ids`; when omitted, it
+can auto-group by sample IDs by default. Set `auto_group_by_id_when_none=False` to force
+non-grouped stratification unless you pass `group_ids` explicitly.
 
 ## Activation Extraction Usage
 

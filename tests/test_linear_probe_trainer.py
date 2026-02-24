@@ -18,7 +18,7 @@ class LinearProbeTrainerTests(unittest.TestCase):
 
         trainer = BinaryLinearProbeTrainer(
             input_dim=4,
-            config=ProbeConfig(epochs=25, learning_rate=0.1),
+            config=ProbeConfig(epochs=25, learning_rate=0.1, early_stopping_patience=None),
         )
         history = trainer.fit(loader, val_loader=loader)
         metrics = trainer.evaluate(loader)

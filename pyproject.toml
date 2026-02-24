@@ -5,11 +5,13 @@ description = "Mechanistic interpretability toolkit for activation extraction an
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "datasets>=3.0.0",
     "nnterp>=1.2.2",
     "safetensors",
     "torch",
     "typing_extensions",
     "torchmetrics",
+    "matplotlib>=3.10.8",
 ]
 
 [project.optional-dependencies]

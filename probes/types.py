@@ -14,7 +14,7 @@ class TrainedLayerProbe:
     activation_key: str
     trainer: BinaryLinearProbeTrainer
     history: dict[str, list[float | tuple[float, float]]]
-    metrics: dict[str, float | tuple[float, float]]
+    val_metrics: dict[str, float | tuple[float, float]]
     direction: torch.Tensor
     bias: float
 
@@ -25,6 +25,10 @@ class LayerProbeSweepResult:
     best_key: str
     best_metric: str
     best_score: float
+    test_metrics: dict[str, float | tuple[float, float]]
+    controls: dict[str, dict[str, float]]
     best_direction: torch.Tensor
     best_bias: float
-    split_sizes: tuple[int, int]
+    split_sizes: tuple[int, int, int]
+    dataset_fingerprint: str
+    manifest_path: str | None

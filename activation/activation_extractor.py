@@ -69,11 +69,12 @@ class ActivationExtractor:
             )
         self.config = config
         mc = config.model_config
-        self.model_name = mc.model_name
+        unsupported_model_kwargs = {"device"}
         model_kwargs: dict[str, Any] = {
             f.name: getattr(mc, f.name)
             for f in fields(mc)
             if f.name not in ("model_name", "additional_kwargs")
+            and f.name not in unsupported_model_kwargs
             and getattr(mc, f.name) is not None
             and (f.name not in self._BOOL_FLAGS or getattr(mc, f.name))
         }
@@ -89,7 +90,7 @@ class ActivationExtractor:
     @property
     def info(self) -> ModelMetadata:
         return {
-            "name": self.model_name,
+            "name": self.model,
             "num_layers": int(self.model.num_layers),
             "hidden_size": int(self.model.hidden_size),
             "num_heads": int(self.model.num_heads),

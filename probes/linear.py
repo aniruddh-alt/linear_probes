@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from copy import deepcopy
 from dataclasses import replace
 from statistics import mean, stdev
 from typing import Any, cast
@@ -69,6 +70,9 @@ class BinaryLinearProbeTrainer:
         if val_loader is not None:
             history["val_loss"] = []
             history["val_accuracy"] = []
+        best_val_loss: float | None = None
+        best_state_dict: dict[str, torch.Tensor] | None = None
+        epochs_without_improvement = 0
 
         for _ in range(self.config.epochs):
             self.model.train()
@@ -81,6 +85,10 @@ class BinaryLinearProbeTrainer:
                 loss = self.criterion(logits, y)
                 self.optimizer.zero_grad()
                 loss.backward()
+                if self.config.max_grad_norm is not None:
+                    torch.nn.utils.clip_grad_norm_(
+                        self.model.parameters(), max_norm=self.config.max_grad_norm
+                    )
                 self.optimizer.step()
 
                 batch_size = x.shape[0]
@@ -91,8 +99,29 @@ class BinaryLinearProbeTrainer:
 
             if val_loader is not None:
                 metrics = self.evaluate(val_loader)
-                history["val_loss"].append(metrics["loss"])
+                val_loss = float(metrics["loss"])
+                history["val_loss"].append(val_loss)
                 history["val_accuracy"].append(metrics["accuracy"])
+                if self.config.early_stopping_patience is not None:
+                    if best_val_loss is None:
+                        best_val_loss = val_loss
+                        best_state_dict = deepcopy(self.model.state_dict())
+                        epochs_without_improvement = 0
+                    elif (
+                        best_val_loss - val_loss > self.config.early_stopping_min_delta
+                    ):
+                        best_val_loss = val_loss
+                        best_state_dict = deepcopy(self.model.state_dict())
+                        epochs_without_improvement = 0
+                    else:
+                        epochs_without_improvement += 1
+                    if (
+                        epochs_without_improvement
+                        >= self.config.early_stopping_patience
+                    ):
+                        break
+        if best_state_dict is not None:
+            self.model.load_state_dict(best_state_dict)
 
         return history
 

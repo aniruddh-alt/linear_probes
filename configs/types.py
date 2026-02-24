@@ -122,10 +122,13 @@ class ProbeConfig:
 
     epochs: int = 10
     learning_rate: float = 1e-3
-    weight_decay: float = 0.0
+    weight_decay: float = 1e-2
+    max_grad_norm: float | None = None
     threshold: float = 0.5
     device: str | None = None
     seed: int | None = None
+    early_stopping_patience: int | None = 5
+    early_stopping_min_delta: float = 1e-4
     bootstrap_samples: int = 0
     bootstrap_confidence: float = 0.95
 
@@ -134,8 +137,19 @@ class ProbeConfig:
             raise ValueError("epochs must be > 0.")
         if self.learning_rate <= 0:
             raise ValueError("learning_rate must be > 0.")
+        if self.weight_decay < 0:
+            raise ValueError("weight_decay must be >= 0.")
+        if self.max_grad_norm is not None and self.max_grad_norm <= 0:
+            raise ValueError("max_grad_norm must be > 0 when provided.")
         if not 0.0 < self.threshold < 1.0:
             raise ValueError("threshold must be in (0, 1).")
+        if (
+            self.early_stopping_patience is not None
+            and self.early_stopping_patience < 0
+        ):
+            raise ValueError("early_stopping_patience must be >= 0 when provided.")
+        if self.early_stopping_min_delta < 0.0:
+            raise ValueError("early_stopping_min_delta must be >= 0.")
         if self.bootstrap_samples < 0:
             raise ValueError("bootstrap_samples must be >= 0.")
         if not 0.0 < self.bootstrap_confidence < 1.0:
@@ -148,11 +162,15 @@ class LayerProbeSweepConfig:
 
     probe: ProbeConfig = field(default_factory=ProbeConfig)
     activation_targets: list[str | int] | None = None
-    train_fraction: float = 0.8
+    train_fraction: float = 0.7
+    val_fraction: float = 0.15
+    test_fraction: float = 0.15
     batch_size: int = 32
     split_seed: int | None = 0
     selection_metric: str = "auroc"
     maximize_metric: bool = True
+    control_seeds: tuple[int, ...] = (0, 1, 2)
+    enforce_control_sanity: bool = True
 
     def __post_init__(self) -> None:
         if self.activation_targets is not None:
@@ -169,7 +187,17 @@ class LayerProbeSweepConfig:
                 )
         if not 0.0 < self.train_fraction < 1.0:
             raise ValueError("train_fraction must be in (0, 1).")
+        if not 0.0 < self.val_fraction < 1.0:
+            raise ValueError("val_fraction must be in (0, 1).")
+        if not 0.0 < self.test_fraction < 1.0:
+            raise ValueError("test_fraction must be in (0, 1).")
+        if abs(self.train_fraction + self.val_fraction + self.test_fraction - 1.0) > 1e-8:
+            raise ValueError("train_fraction + val_fraction + test_fraction must equal 1.0.")
         if self.batch_size <= 0:
             raise ValueError("batch_size must be > 0.")
         if not self.selection_metric.strip():
             raise ValueError("selection_metric must be non-empty.")
+        if not self.control_seeds:
+            raise ValueError("control_seeds must be non-empty.")
+        if any(not isinstance(seed, int) for seed in self.control_seeds):
+            raise ValueError("control_seeds must contain only integers.")
