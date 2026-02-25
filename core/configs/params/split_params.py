@@ -12,7 +12,7 @@ from core.configs.base import BaseConfig
 class SplitParams(BaseConfig):
     """Configuration for train/val/test splitting.
 
-    Maps from the split-related fields in LayerProbeSweepConfig.
+    Configuration for train/val/test splitting.
     """
 
     train_fraction: float = 0.7

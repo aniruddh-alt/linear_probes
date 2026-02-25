@@ -19,7 +19,7 @@ from torchmetrics.classification import (  # type: ignore[import-untyped]
     BinaryRecall,
 )
 
-from configs import ProbeConfig
+from core.configs import ProbeParams
 
 
 class LinearProbe(nn.Module):
@@ -36,8 +36,8 @@ class LinearProbe(nn.Module):
 class BinaryLinearProbeTrainer:
     """End-to-end trainer/evaluator for binary linear probes."""
 
-    def __init__(self, input_dim: int, config: ProbeConfig | None = None):
-        self.config = config or ProbeConfig()
+    def __init__(self, input_dim: int, config: ProbeParams | None = None):
+        self.config = config or ProbeParams()
         if self.config.seed is not None:
             torch.manual_seed(self.config.seed)
         self.device = torch.device(self.config.device or "cpu")
@@ -237,7 +237,7 @@ def run_probe_with_controls(
     input_dim: int,
     train_loader: DataLoader[tuple[torch.Tensor, torch.Tensor]],
     eval_loader: DataLoader[tuple[torch.Tensor, torch.Tensor]],
-    config: ProbeConfig | None = None,
+    config: ProbeParams | None = None,
     seeds: Sequence[int] = (0,),
 ) -> dict[str, Any]:
     """Train/evaluate probe with multi-seed and baseline controls.
@@ -246,7 +246,7 @@ def run_probe_with_controls(
     - shuffled_labels: train on a random permutation of training labels.
     - random_features: train/eval on Gaussian random features.
     """
-    base_config = config or ProbeConfig()
+    base_config = config or ProbeParams()
     train_x, train_y = _loader_to_tensors(train_loader)
     eval_x, eval_y = _loader_to_tensors(eval_loader)
 

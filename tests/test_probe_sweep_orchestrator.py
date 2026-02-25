@@ -6,7 +6,7 @@ from pathlib import Path
 
 import torch
 
-from configs import LayerProbeSweepConfig, ProbeConfig
+from core.configs import ProbeParams, SweepParams
 from dataset import ProbingSampleBuilder
 from probes import LayerProbeSweepRunner
 
@@ -50,13 +50,10 @@ class LayerProbeSweepRunnerTests(unittest.TestCase):
             sample_ids=extraction["sample_ids"],
         )
 
-        config = LayerProbeSweepConfig(
-            activation_targets=[0, 1],
-            batch_size=32,
-            selection_metric="auroc",
-            probe=ProbeConfig(epochs=20, learning_rate=0.05, seed=7, weight_decay=0.01),
-        )
-        result = LayerProbeSweepRunner(config).run(
+        result = LayerProbeSweepRunner(
+            probe=ProbeParams(epochs=20, learning_rate=0.05, seed=7, weight_decay=0.01),
+            sweep=SweepParams(activation_targets=[0, 1], batch_size=32, selection_metric="auroc"),
+        ).run(
             extraction,
             train_indices=train_idx,
             val_indices=val_idx,
@@ -98,14 +95,12 @@ class LayerProbeSweepRunnerTests(unittest.TestCase):
             seed=1,
             group_ids=bundle.ids,
         )
-        config = LayerProbeSweepConfig(
-            activation_targets=[0],
-            batch_size=8,
-            probe=ProbeConfig(epochs=10, learning_rate=0.1, seed=1),
-        )
         with tempfile.TemporaryDirectory() as tmp_dir:
             manifest = Path(tmp_dir) / "run_manifest.json"
-            result = LayerProbeSweepRunner(config).run(
+            result = LayerProbeSweepRunner(
+                probe=ProbeParams(epochs=10, learning_rate=0.1, seed=1),
+                sweep=SweepParams(activation_targets=[0], batch_size=8),
+            ).run(
                 extraction,
                 train_indices=train_idx,
                 val_indices=val_idx,
@@ -136,15 +131,13 @@ class LayerProbeSweepRunnerTests(unittest.TestCase):
         ]
         bundle = ProbingSampleBuilder.from_iterable(records).to_samples(text_key="text")
         train_idx, val_idx, test_idx = bundle.train_val_test_split(seed=9, group_ids=bundle.ids)
-        config = LayerProbeSweepConfig(
-            activation_targets=["layers_output:0"],
-            batch_size=8,
-            probe=ProbeConfig(epochs=5, learning_rate=0.05, seed=9),
-        )
         with tempfile.TemporaryDirectory() as tmp_dir:
             manifest = Path(tmp_dir) / "run_manifest.json"
             manifest.write_text("old", encoding="utf-8")
-            result = LayerProbeSweepRunner(config).run(
+            result = LayerProbeSweepRunner(
+                probe=ProbeParams(epochs=5, learning_rate=0.05, seed=9),
+                sweep=SweepParams(activation_targets=["layers_output:0"], batch_size=8),
+            ).run(
                 extraction,
                 train_indices=train_idx,
                 val_indices=val_idx,
@@ -172,15 +165,13 @@ class LayerProbeSweepRunnerTests(unittest.TestCase):
         ]
         bundle = ProbingSampleBuilder.from_iterable(records).to_samples(text_key="text")
         train_idx, val_idx, test_idx = bundle.train_val_test_split(seed=7, group_ids=bundle.ids)
-        config = LayerProbeSweepConfig(
-            activation_targets=["layers_output:0"],
-            batch_size=8,
-            probe=ProbeConfig(epochs=5, learning_rate=0.05, seed=7),
-        )
         with tempfile.TemporaryDirectory() as tmp_dir:
             manifest = Path(tmp_dir) / "run_manifest.json"
             manifest.write_text("already here", encoding="utf-8")
-            result = LayerProbeSweepRunner(config).run(
+            result = LayerProbeSweepRunner(
+                probe=ProbeParams(epochs=5, learning_rate=0.05, seed=7),
+                sweep=SweepParams(activation_targets=["layers_output:0"], batch_size=8),
+            ).run(
                 extraction,
                 train_indices=train_idx,
                 val_indices=val_idx,
@@ -211,7 +202,7 @@ class LayerProbeSweepRunnerTests(unittest.TestCase):
         bundle = ProbingSampleBuilder.from_iterable(records).to_samples(text_key="text")
         train_idx, val_idx, test_idx = bundle.train_val_test_split(seed=2, group_ids=bundle.ids)
         with self.assertRaisesRegex(ValueError, "mutually exclusive"):
-            LayerProbeSweepRunner(LayerProbeSweepConfig()).run(
+            LayerProbeSweepRunner().run(
                 extraction,
                 train_indices=train_idx,
                 val_indices=val_idx,

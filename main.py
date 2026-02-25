@@ -7,7 +7,7 @@ from datasets import load_dataset
 from transformers import AutoTokenizer
 
 from activation import ActivationExtractor
-from configs import ActivationConfig, LayerProbeSweepConfig, ModelConfig, ProbeConfig
+from core.configs import ExtractionParams, ModelParams, ProbeParams, SweepParams
 from dataset import ProbingSampleBuilder
 from probes import LayerProbeSweepRunner, ProbeAnalyzer
 
@@ -184,39 +184,34 @@ def main() -> None:
         raise ValueError("Forced assistant prefix must tokenize to at least one token.")
     response_token_index = -len(prefix_tokens)
 
-    model_config = ModelConfig(model_name=MODEL_NAME)
+    model_params = ModelParams(model_name=MODEL_NAME)
     activation_targets = [f"layers_output:{i}" for i in range(NUM_LAYERS)]
-    activation_config = ActivationConfig(
-        model_config=model_config,
-        save_path=ARTIFACT_PATH,
+    extraction_params = ExtractionParams(
+        save_path=str(ARTIFACT_PATH),
         activations=activation_targets,
         batch_size=BATCH_SIZE,
         token_index=response_token_index,
         to_cpu=True,
     )
-    extractor = ActivationExtractor(activation_config)
+    extractor = ActivationExtractor(model=model_params, extraction=extraction_params)
     extraction = extractor.extract(bundle)
 
-    sweep_config = LayerProbeSweepConfig(
+    probe_params = ProbeParams(
+        early_stopping_min_delta=0.0005,
+        weight_decay=0.1,
+        early_stopping_patience=5,
+        epochs=min(EPOCHS, 10),
+        learning_rate=min(LEARNING_RATE, 1e-3),
+        seed=SEED,
+        bootstrap_samples=200,
+    )
+    sweep_params = SweepParams(
         activation_targets=[f"layers_output:{i}" for i in range(NUM_LAYERS)],
         batch_size=BATCH_SIZE,
-        train_fraction=TRAIN_FRACTION,
-        val_fraction=VAL_FRACTION,
-        test_fraction=TEST_FRACTION,
-        split_seed=SEED,
         selection_metric="auroc",
         enforce_control_sanity=False,
-        probe=ProbeConfig(
-            early_stopping_min_delta=0.0005,
-            weight_decay=0.1,
-            early_stopping_patience=5,
-            epochs=min(EPOCHS, 10),
-            learning_rate=min(LEARNING_RATE, 1e-3),
-            seed=SEED,
-            bootstrap_samples=200,
-        ),
     )
-    sweep_result = LayerProbeSweepRunner(sweep_config).run(
+    sweep_result = LayerProbeSweepRunner(probe=probe_params, sweep=sweep_params).run(
         extraction,
         train_indices=train_indices,
         val_indices=val_indices,

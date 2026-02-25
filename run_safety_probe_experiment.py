@@ -6,7 +6,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from activation import ActivationExtractor
-from configs import ActivationConfig, LayerProbeSweepConfig, ModelConfig, ProbeConfig
+from core.configs import ExtractionParams, ModelParams, ProbeParams, SweepParams
 from dataset import ProbingDataset, ProbingSampleBuilder
 from probes import LayerProbeSweepRunner
 from probes.analyze import ProbeAnalyzer
@@ -29,23 +29,18 @@ if __name__ == "__main__":
     val_indices = list(range(len(splits.train_records), len(train_val_records)))
 
     extractor = ActivationExtractor(
-        ActivationConfig(
-            model_config=ModelConfig(
-                model_name=model_name,
-                dtype="float32",
-                device_map="cpu",
-                attn_implementation="eager",
-                additional_kwargs={
-                    "check_renaming": False,
-                    "allow_dispatch": False,
-                },
-            ),
+        model=ModelParams(
+            model_name=model_name,
+            dtype="float32",
+            attn_implementation="eager",
+        ),
+        extraction=ExtractionParams(
             save_path="artifacts/qwen_safety_trainval",
             activations=["layers_output:*"],
             batch_size=batch_size,
             token_index=-1,
             to_cpu=True,
-        )
+        ),
     )
 
     print("Extracting train+val activations...")
@@ -53,21 +48,21 @@ if __name__ == "__main__":
     train_val_extraction["labels"] = train_val_labels
 
     sweep = LayerProbeSweepRunner(
-        LayerProbeSweepConfig(
-            probe=ProbeConfig(
-                epochs=60,
-                learning_rate=1e-3,
-                weight_decay=0.05,
-                max_grad_norm=1.0,
-                early_stopping_patience=5,
-                early_stopping_min_delta=1e-4,
-                seed=args.seed,
-                device=args.device,
-            ),
+        probe=ProbeParams(
+            epochs=60,
+            learning_rate=1e-3,
+            weight_decay=0.05,
+            max_grad_norm=1.0,
+            early_stopping_patience=5,
+            early_stopping_min_delta=1e-4,
+            seed=args.seed,
+            device=args.device,
+        ),
+        sweep=SweepParams(
             activation_targets=list(train_val_extraction["requested"]),
             batch_size=batch_size,
             selection_metric="auroc",
-        )
+        ),
     )
 
     sweep_result = sweep.run(

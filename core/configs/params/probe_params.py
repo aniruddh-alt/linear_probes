@@ -12,7 +12,7 @@ from core.configs.base import BaseConfig
 class ProbeParams(BaseConfig):
     """Training configuration for linear probes.
 
-    Maps from the existing ProbeConfig in configs/types.py.
+    Typed configuration for linear probe training.
     """
 
     epochs: int = 10

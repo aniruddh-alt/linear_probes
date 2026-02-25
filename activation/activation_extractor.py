@@ -12,7 +12,7 @@ from safetensors.torch import save_file
 from torch.utils.data import DataLoader, Dataset
 
 from activation.types import ExtractionResult, LayerSpec, ModelMetadata
-from configs import ActivationConfig
+from core.configs import ExtractionParams, ModelParams
 from dataset.samples import SampleBundle
 
 try:
@@ -60,30 +60,34 @@ class ActivationExtractor:
         {"enable_attention_probs", "trust_remote_code", "load_in_8bit", "load_in_4bit"}
     )
 
-    def __init__(self, config: ActivationConfig):
+    def __init__(
+        self,
+        model: ModelParams | None = None,
+        extraction: ExtractionParams | None = None,
+    ):
         transformer_cls = StandardizedTransformer
         if transformer_cls is None:
             raise ModuleNotFoundError(
                 "ActivationExtractor requires optional dependency 'nnterp'. "
                 "Install project dependencies before constructing the extractor."
             )
-        self.config = config
-        mc = config.model_config
+        self.model_params = model or ModelParams()
+        self.extraction_params = extraction or ExtractionParams()
+        mc = self.model_params
         unsupported_model_kwargs = {"device"}
         model_kwargs: dict[str, Any] = {
             f.name: getattr(mc, f.name)
             for f in fields(mc)
-            if f.name not in ("model_name", "additional_kwargs")
+            if f.name not in ("model_name",)
             and f.name not in unsupported_model_kwargs
             and getattr(mc, f.name) is not None
             and (f.name not in self._BOOL_FLAGS or getattr(mc, f.name))
         }
-        model_kwargs.update(mc.additional_kwargs)
         self.model = transformer_cls(mc.model_name, **model_kwargs)
-        self.batch_size = config.batch_size
+        self.batch_size = self.extraction_params.batch_size
         self.default_activations = (
-            list(config.activations)
-            if config.activations
+            list(self.extraction_params.activations)
+            if self.extraction_params.activations
             else [f"layers_output:{self.model.num_layers - 1}"]
         )
 
@@ -128,9 +132,9 @@ class ActivationExtractor:
             self._validate_spec(spec)
 
         prompts_source, sample_ids, labels = self._resolve_samples_metadata(samples)
-        resolved_token_index = self.config.token_index
-        resolved_remote = self.config.remote
-        resolved_to_cpu = self.config.to_cpu
+        resolved_token_index = self.extraction_params.token_index
+        resolved_remote = self.extraction_params.remote
+        resolved_to_cpu = self.extraction_params.to_cpu
         loader = self._as_dataloader(prompts_source, batch_size=self.batch_size)
         outputs_chunks: dict[str, list[torch.Tensor]] = {name: [] for name in requested}
 
@@ -206,7 +210,7 @@ class ActivationExtractor:
         }
         result["storage"] = self._persist_result(
             result=result,
-            save_path=Path(self.config.save_path),
+            save_path=Path(self.extraction_params.save_path),
         )
         return result
 

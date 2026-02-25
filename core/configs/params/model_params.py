@@ -17,7 +17,7 @@ _VALID_DTYPES = frozenset({
 class ModelParams(BaseConfig):
     """Configuration for model initialization.
 
-    Maps from the existing ModelConfig in configs/types.py.
+    Typed configuration for model initialization.
     """
 
     model_name: str = ""

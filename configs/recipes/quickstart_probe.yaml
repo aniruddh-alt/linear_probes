@@ -25,6 +25,12 @@ split:
   test_fraction: 0.15
   split_seed: 0
 
+sweep:
+  batch_size: 32
+  selection_metric: auroc
+  maximize_metric: true
+  enforce_control_sanity: true
+
 output:
   output_dir: artifacts
   save_plots: true

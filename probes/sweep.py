@@ -9,7 +9,7 @@ import torch
 from torch.utils.data import DataLoader, Subset
 
 from activation.types import ExtractionResult
-from configs import LayerProbeSweepConfig
+from core.configs import ProbeParams, SweepParams
 from dataset import ProbingDataset
 from dataset.splitting import _validate_split_indices
 from probes.linear import BinaryLinearProbeTrainer, run_probe_with_controls
@@ -20,8 +20,13 @@ from probes.types import LayerProbeSweepResult, TrainedLayerProbe
 class LayerProbeSweepRunner:
     """Runs train/validation split + fit/eval for multiple activation layers."""
 
-    def __init__(self, config: LayerProbeSweepConfig | None = None):
-        self.config = config or LayerProbeSweepConfig()
+    def __init__(
+        self,
+        probe: ProbeParams | None = None,
+        sweep: SweepParams | None = None,
+    ):
+        self.probe = probe or ProbeParams()
+        self.sweep = sweep or SweepParams()
 
     def run(
         self,
@@ -75,7 +80,7 @@ class LayerProbeSweepRunner:
                 dataset, train_indices, val_indices, test_indices
             )
             trainer = BinaryLinearProbeTrainer(
-                input_dim=dataset[0][0].numel(), config=self.config.probe
+                input_dim=dataset[0][0].numel(), config=self.probe
             )
             history = trainer.fit(train_loader, val_loader=val_loader)
             val_metrics = trainer.evaluate(val_loader)
@@ -106,15 +111,15 @@ class LayerProbeSweepRunner:
             input_dim=first_dataset[0][0].numel(),
             train_loader=train_loader,
             eval_loader=test_loader,
-            config=self.config.probe,
-            seeds=self.config.control_seeds,
+            config=self.probe,
+            seeds=self.sweep.control_seeds,
         )
         controls_summary = {
             "real": controls_result["real"],
             "shuffled_labels": controls_result["controls"]["shuffled_labels"],
             "random_features": controls_result["controls"]["random_features"],
         }
-        if self.config.enforce_control_sanity:
+        if self.sweep.enforce_control_sanity:
             self._enforce_control_sanity(controls_summary)
 
         if dataset_labels is None:
@@ -137,10 +142,10 @@ class LayerProbeSweepRunner:
                 manifest_path_obj = self._next_manifest_path(manifest_path_obj)
             resolved_manifest_path = write_run_manifest(
                 manifest_path=manifest_path_obj,
-                config=self.config,
+                config={"probe": self.probe, "sweep": self.sweep},
                 dataset_fingerprint=dataset_fingerprint,
                 selected_key=best_key,
-                selection_metric=self.config.selection_metric,
+                selection_metric=self.sweep.selection_metric,
                 split_indices={
                     "train": train_indices,
                     "val": val_indices,
@@ -154,7 +159,7 @@ class LayerProbeSweepRunner:
         return LayerProbeSweepResult(
             probes=trained,
             best_key=best_key,
-            best_metric=self.config.selection_metric,
+            best_metric=self.sweep.selection_metric,
             best_score=best_score,
             test_metrics=test_metrics,
             controls=controls_summary,
@@ -182,9 +187,9 @@ class LayerProbeSweepRunner:
     def _resolve_activation_keys(
         self, extraction: ExtractionResult | dict[str, Any]
     ) -> list[str]:
-        if self.config.activation_targets is not None:
+        if self.sweep.activation_targets is not None:
             resolved: list[str] = []
-            for target in self.config.activation_targets:
+            for target in self.sweep.activation_targets:
                 if isinstance(target, int):
                     resolved.append(f"layers_output:{target}")
                     continue
@@ -222,13 +227,13 @@ class LayerProbeSweepRunner:
         val_dataset = Subset(dataset, val_idx)
         test_dataset = Subset(dataset, test_idx)
         train_loader = DataLoader(
-            train_dataset, batch_size=self.config.batch_size, shuffle=True
+            train_dataset, batch_size=self.sweep.batch_size, shuffle=True
         )
         val_loader = DataLoader(
-            val_dataset, batch_size=self.config.batch_size, shuffle=False
+            val_dataset, batch_size=self.sweep.batch_size, shuffle=False
         )
         test_loader = DataLoader(
-            test_dataset, batch_size=self.config.batch_size, shuffle=False
+            test_dataset, batch_size=self.sweep.batch_size, shuffle=False
         )
         return train_loader, val_loader, test_loader
 
@@ -245,15 +250,15 @@ class LayerProbeSweepRunner:
     ) -> tuple[str, float]:
         if not probes:
             raise ValueError("No probes available for layer selection.")
-        chooser = max if self.config.maximize_metric else min
+        chooser = max if self.sweep.maximize_metric else min
         best_key = chooser(
             probes,
             key=lambda key: self._metric_value(
-                probes[key].val_metrics, self.config.selection_metric
+                probes[key].val_metrics, self.sweep.selection_metric
             ),
         )
         best_score = self._metric_value(
-            probes[best_key].val_metrics, self.config.selection_metric
+            probes[best_key].val_metrics, self.sweep.selection_metric
         )
         return best_key, best_score
 

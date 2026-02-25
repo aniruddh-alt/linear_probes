@@ -12,7 +12,7 @@ from core.configs.base import BaseConfig
 class ExtractionParams(BaseConfig):
     """Configuration for activation extraction runs.
 
-    Maps from the existing ActivationConfig in configs/types.py.
+    Typed configuration for activation extraction runs.
     """
 
     save_path: str = ""

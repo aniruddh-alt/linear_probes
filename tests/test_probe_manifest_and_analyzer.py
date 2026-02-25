@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import torch
 
-from configs import LayerProbeSweepConfig
+from core.configs import ProbeParams, SweepParams
 from probes.analyze import ProbeAnalyzer
 from probes.run_manifest import compute_dataset_fingerprint, hash_indices, write_run_manifest
 from probes.types import TrainedLayerProbe
@@ -31,7 +31,7 @@ class ProbeManifestAndAnalyzerTests(unittest.TestCase):
             manifest_path = Path(tmp_dir) / "manifest.json"
             write_run_manifest(
                 manifest_path=manifest_path,
-                config=LayerProbeSweepConfig(),
+                config={"probe": ProbeParams(), "sweep": SweepParams()},
                 dataset_fingerprint="abc123",
                 selected_key="layers_output:1",
                 selection_metric="auroc",
@@ -47,7 +47,7 @@ class ProbeManifestAndAnalyzerTests(unittest.TestCase):
             with self.assertRaises(FileExistsError):
                 write_run_manifest(
                     manifest_path=manifest_path,
-                    config=LayerProbeSweepConfig(),
+                    config={"probe": ProbeParams(), "sweep": SweepParams()},
                     dataset_fingerprint="abc123",
                     selected_key="layers_output:1",
                     selection_metric="auroc",
@@ -95,7 +95,7 @@ class ProbeManifestAndAnalyzerTests(unittest.TestCase):
             split_indices = {"train": [4, 0, 2], "val": [1], "test": [3, 5]}
             write_run_manifest(
                 manifest_path=manifest_path,
-                config=LayerProbeSweepConfig(),
+                config={"probe": ProbeParams(), "sweep": SweepParams()},
                 dataset_fingerprint="fingerprint-123",
                 selected_key="layers_output:1",
                 selection_metric="auroc",

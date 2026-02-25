@@ -1,9 +1,4 @@
-from .types import (
-    ActivationConfig,
-    LayerProbeSweepConfig,
-    ModelConfig,
-    ProbeConfig,
-)
+"""Thin re-export layer -- all config types live in core.configs."""
 
 from core.configs import (
     BaseConfig,
@@ -13,18 +8,16 @@ from core.configs import (
     ProbeParams,
     RunConfig,
     SplitParams,
+    SweepParams,
 )
 
 __all__ = [
-    "ActivationConfig",
     "BaseConfig",
     "ExtractionParams",
-    "LayerProbeSweepConfig",
-    "ModelConfig",
     "ModelParams",
     "OutputParams",
-    "ProbeConfig",
     "ProbeParams",
     "RunConfig",
     "SplitParams",
+    "SweepParams",
 ]
