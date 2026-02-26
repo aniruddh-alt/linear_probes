@@ -7,6 +7,7 @@ from typing import Optional
 
 from core.configs.base import BaseConfig
 from core.configs.params.extraction_params import ExtractionParams
+from core.configs.params.generation_params import GenerationParams
 from core.configs.params.model_params import ModelParams
 from core.configs.params.output_params import OutputParams
 from core.configs.params.probe_params import ProbeParams
@@ -25,6 +26,7 @@ class RunConfig(BaseConfig):
     seed: int = 0
     action: str = "probe_sweep"
     model: ModelParams = field(default_factory=ModelParams)
+    generation: GenerationParams = field(default_factory=GenerationParams)
     extraction: ExtractionParams = field(default_factory=ExtractionParams)
     probe: ProbeParams = field(default_factory=ProbeParams)
     split: SplitParams = field(default_factory=SplitParams)
