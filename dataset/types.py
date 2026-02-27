@@ -13,6 +13,7 @@ class SampleBundle:
     prompts: Dataset[str]
     labels: list[int | None]
     ids: list[str]
+    responses: list[str] | None = None
 
     def train_val_test_split(
         self,
