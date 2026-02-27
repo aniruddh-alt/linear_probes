@@ -64,3 +64,15 @@ class TestExperimentRunner:
             config_path="quick", aliases_path=aliases_file
         )
         assert result.summary["run_name"] == "aliased"
+
+    def test_generate_action_dispatches(self, tmp_path):
+        config_path = tmp_path / "run.yaml"
+        config_path.write_text(
+            "run_name: gen\naction: generate\n"
+            "model:\n  model_name: test-model\n"
+            "generation:\n  max_new_tokens: 64\n",
+            encoding="utf-8",
+        )
+        result = run_experiment(config_path=config_path)
+        assert result.summary["action"] == "generate"
+        assert result.summary["status"] == "configured"

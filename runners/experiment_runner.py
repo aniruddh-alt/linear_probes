@@ -73,6 +73,7 @@ def dispatch_action(cfg: RunConfig) -> RunResult:
         "probe_sweep": _action_probe_sweep,
         "extract": _action_extract,
         "analyze": _action_analyze,
+        "generate": _action_generate,
     }
     handler = handlers.get(cfg.action)
     if handler is None:
@@ -103,6 +104,19 @@ def _action_extract(cfg: RunConfig) -> RunResult:
             "run_name": cfg.run_name,
             "action": cfg.action,
             "model": cfg.model.model_name,
+            "status": "configured",
+        },
+    )
+
+
+def _action_generate(cfg: RunConfig) -> RunResult:
+    """Placeholder for response generation action wiring."""
+    return RunResult(
+        summary={
+            "run_name": cfg.run_name,
+            "action": cfg.action,
+            "model": cfg.model.model_name,
+            "max_new_tokens": cfg.generation.max_new_tokens,
             "status": "configured",
         },
     )
