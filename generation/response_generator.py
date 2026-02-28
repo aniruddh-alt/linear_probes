@@ -2,15 +2,102 @@
 
 from __future__ import annotations
 
-from typing import Sequence
+import logging
+from typing import Callable, Sequence
 
 import torch
+from safetensors.torch import load_file
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from core.configs.params.generation_params import GenerationParams
 from core.configs.params.model_params import ModelParams
+from core.configs.params.steering_params import SteeringParams
 from dataset.types import SampleBundle
 from generation.types import GenerationResult
+
+logger = logging.getLogger(__name__)
+
+
+def _load_vector(
+    path: str,
+    key: str = "",
+    normalize: bool = True,
+    device: str = "cpu",
+) -> torch.Tensor:
+    """Load a steering vector from .pt or .safetensors file.
+
+    Args:
+        path: Path to the vector file.
+        key: Key to use for .safetensors files. Ignored for .pt files.
+        normalize: Whether to L2-normalize the vector.
+        device: Device to place the vector on.
+
+    Returns:
+        1-D tensor of shape (hidden_dim,).
+    """
+    if path.endswith(".safetensors"):
+        tensors = load_file(path, device=device)
+        if key:
+            vec = tensors[key]
+        else:
+            # Take the first (and presumably only) tensor
+            vec = next(iter(tensors.values()))
+    else:
+        vec = torch.load(path, map_location=device, weights_only=True)
+
+    vec = vec.float().squeeze()
+    if normalize:
+        vec = vec / vec.norm()
+    return vec
+
+
+def _make_steering_hook(
+    vector: torch.Tensor,
+    mode: str,
+    strength: float,
+) -> Callable:
+    """Create a forward hook that steers activations.
+
+    Args:
+        vector: Unit steering vector of shape (hidden_dim,).
+        mode: "project_subtract" or "additive".
+        strength: Scaling factor (used only for additive mode).
+
+    Returns:
+        A forward hook function compatible with PyTorch register_forward_hook.
+    """
+
+    def hook(module, input, output):  # noqa: A002
+        h = output[0]  # (batch, seq, hidden)
+        if mode == "project_subtract":
+            dot = (h * vector).sum(dim=-1, keepdim=True)
+            h = h - dot * vector
+        elif mode == "additive":
+            h = h + strength * vector
+        return (h, *output[1:])
+
+    return hook
+
+
+def _resolve_layer_modules(model) -> list:
+    """Find the transformer layer modules.
+
+    Supports Llama-style (model.model.layers) and GPT-style
+    (model.transformer.h) architectures.
+
+    Returns:
+        List of layer modules.
+    """
+    # Llama / Mistral / Qwen style
+    if hasattr(model, "model") and hasattr(model.model, "layers"):
+        return list(model.model.layers)
+    # GPT-2 / GPT-Neo style
+    if hasattr(model, "transformer") and hasattr(model.transformer, "h"):
+        return list(model.transformer.h)
+    raise ValueError(
+        "Cannot resolve layer modules. Model must have "
+        "'model.model.layers' or 'model.transformer.h'."
+    )
 
 
 class ResponseGenerator:
@@ -20,9 +107,11 @@ class ResponseGenerator:
         self,
         model: ModelParams,
         generation: GenerationParams | None = None,
+        steering: SteeringParams | None = None,
     ):
         self.model_params = model
         self.generation_params = generation or GenerationParams()
+        self.steering_params = steering
         self.tokenizer = AutoTokenizer.from_pretrained(
             model.model_name,
             trust_remote_code=model.trust_remote_code,
@@ -42,6 +131,22 @@ class ResponseGenerator:
             low_cpu_mem_usage=model.low_cpu_mem_usage,
             **model_kwargs,
         )
+
+        # Load steering vector if enabled
+        self._steering_vector: torch.Tensor | None = None
+        if steering and steering.enabled:
+            self._steering_vector = _load_vector(
+                path=steering.vector_path,
+                key=steering.vector_key,
+                normalize=steering.normalize,
+                device=str(self.model.device),
+            )
+            logger.info(
+                "Loaded steering vector: shape=%s, mode=%s, layers=%s",
+                self._steering_vector.shape,
+                steering.mode,
+                steering.layers,
+            )
 
     def generate(
         self,
@@ -67,34 +172,57 @@ class ResponseGenerator:
         gen_params = self.generation_params
         responses: list[str] = []
 
-        for batch_start in range(0, len(prompts), gen_params.batch_size):
-            batch = prompts[batch_start : batch_start + gen_params.batch_size]
-            inputs = self.tokenizer(
-                batch,
-                return_tensors="pt",
-                padding=True,
-                truncation=True,
-            )
-            input_ids = inputs["input_ids"].to(self.model.device)
-            attention_mask = inputs["attention_mask"].to(self.model.device)
-            input_len = input_ids.shape[1]
+        # Register steering hooks if enabled
+        handles = []
+        if self._steering_vector is not None and self.steering_params:
+            try:
+                layer_modules = _resolve_layer_modules(self.model)
+            except ValueError:
+                logger.warning("Could not resolve layer modules; skipping steering.")
+                layer_modules = []
 
-            with torch.no_grad():
-                output_ids = self.model.generate(
-                    input_ids=input_ids,
-                    attention_mask=attention_mask,
-                    max_new_tokens=gen_params.max_new_tokens,
-                    temperature=gen_params.temperature,
-                    top_p=gen_params.top_p,
-                    do_sample=gen_params.do_sample,
-                    pad_token_id=self.tokenizer.pad_token_id,
+            for layer_idx in self.steering_params.layers:
+                if layer_idx < len(layer_modules):
+                    hook_fn = _make_steering_hook(
+                        vector=self._steering_vector,
+                        mode=self.steering_params.mode,
+                        strength=self.steering_params.strength,
+                    )
+                    handle = layer_modules[layer_idx].register_forward_hook(hook_fn)
+                    handles.append(handle)
+
+        try:
+            for batch_start in range(0, len(prompts), gen_params.batch_size):
+                batch = prompts[batch_start : batch_start + gen_params.batch_size]
+                inputs = self.tokenizer(
+                    batch,
+                    return_tensors="pt",
+                    padding=True,
+                    truncation=True,
                 )
+                input_ids = inputs["input_ids"].to(self.model.device)
+                attention_mask = inputs["attention_mask"].to(self.model.device)
+                input_len = input_ids.shape[1]
 
-            new_tokens = output_ids[:, input_len:]
-            decoded = self.tokenizer.batch_decode(
-                new_tokens, skip_special_tokens=True
-            )
-            responses.extend(decoded)
+                with torch.no_grad():
+                    output_ids = self.model.generate(
+                        input_ids=input_ids,
+                        attention_mask=attention_mask,
+                        max_new_tokens=gen_params.max_new_tokens,
+                        temperature=gen_params.temperature,
+                        top_p=gen_params.top_p,
+                        do_sample=gen_params.do_sample,
+                        pad_token_id=self.tokenizer.pad_token_id,
+                    )
+
+                new_tokens = output_ids[:, input_len:]
+                decoded = self.tokenizer.batch_decode(
+                    new_tokens, skip_special_tokens=True
+                )
+                responses.extend(decoded)
+        finally:
+            for handle in handles:
+                handle.remove()
 
         return GenerationResult(
             prompts=prompts,
