@@ -54,8 +54,6 @@ class ActivationExtractor:
     _INT_PATTERN = re.compile(r"^-?\d+$")
     _INCLUSIVE_RANGE_PATTERN = re.compile(r"^(?P<start>-?\d+)-(?P<end>-?\d+)$")
 
-    # ========== Public API ==========
-
     _BOOL_FLAGS = frozenset(
         {"enable_attention_probs", "trust_remote_code", "load_in_8bit", "load_in_4bit"}
     )
@@ -94,7 +92,7 @@ class ActivationExtractor:
     @property
     def info(self) -> ModelMetadata:
         return {
-            "name": self.model,
+            "name": self.model._get_name(),
             "num_layers": int(self.model.num_layers),
             "hidden_size": int(self.model.hidden_size),
             "num_heads": int(self.model.num_heads),
@@ -217,8 +215,6 @@ class ActivationExtractor:
     @classmethod
     def supported_activation_kinds(cls) -> list[str]:
         return sorted(cls._INDEXED_KINDS | cls._NON_INDEXED_KINDS | cls._PATH_KINDS)
-
-    # ========== Activation String Parsing ==========
 
     def _resolve_requested_activations(
         self, activations: list[str] | None, layers: list[int] | None
@@ -374,8 +370,6 @@ class ActivationExtractor:
                 f"Layer index {index} out of range for model with {self.model.num_layers} layers."
             )
 
-    # ========== Activation Resolution ==========
-
     def _resolve_activation(self, spec: LayerSpec):
         if spec.kind == "token_embeddings":
             return self.model.token_embeddings
@@ -435,8 +429,6 @@ class ActivationExtractor:
                 current = current[int(idx_text)]
         return current
 
-    # ========== Data Pipeline Helpers ==========
-
     @staticmethod
     def _resolve_samples_metadata(
         samples: Sequence[str] | Dataset[str] | DataLoader[str] | SampleBundle,
@@ -483,8 +475,6 @@ class ActivationExtractor:
             return list(batch)
         raise TypeError("Each batch must be a string or a list/tuple of strings.")
 
-    # ========== Tensor Operations ==========
-
     @staticmethod
     def _select_token_position(
         activation,
@@ -493,7 +483,7 @@ class ActivationExtractor:
         kind: str,
         allow_2d: bool = False,
     ):
-        # Typical hidden states are [batch, seq, hidden].
+        # Hidden State: [batch, seq, hidden].
         if token_index is None:
             return activation
         if not hasattr(activation, "ndim"):
@@ -502,7 +492,6 @@ class ActivationExtractor:
             return activation[:, token_index]
         if activation.ndim == 4:
             if kind == "attention_probabilities":
-                # StandardizedTransformer attention probs are [batch, heads, query, key].
                 return activation[:, :, token_index, :]
             raise ValueError(
                 f"token_index was set but activation '{kind}' has rank-4 shape "

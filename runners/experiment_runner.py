@@ -100,15 +100,38 @@ def dispatch_action(cfg: BaseConfig) -> RunResult:
 
 
 def _action_generate(cfg: GenerateConfig) -> RunResult:
-    """Placeholder for response generation action wiring."""
+    """Generate model responses for prompts from a JSONL file."""
+    input_path = cfg.io.input_path
+    if not input_path:
+        raise ValueError("io.input_path is required for the generate action.")
+
+    input_file = Path(input_path)
+    if not input_file.exists():
+        raise FileNotFoundError(f"Input file not found: {input_file}")
+
+    output_dir = Path(cfg.io.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_file = output_dir / "responses.jsonl"
+
+    from dataset import ProbingSampleBuilder
+    from generation import ResponseGenerator
+
+    builder = ProbingSampleBuilder.from_file(input_file)
+    bundle = builder.to_samples(text_key="prompt", label_key=None, id_key=None)
+
+    generator = ResponseGenerator(model=cfg.model, generation=cfg.generation)
+    result = generator.generate(bundle)
+    result.to_jsonl(output_file)
+
     return RunResult(
         summary={
             "run_name": cfg.run_name,
             "action": cfg.action,
             "model": cfg.model.model_name,
-            "max_new_tokens": cfg.generation.max_new_tokens,
-            "status": "configured",
+            "num_samples": len(result.prompts),
+            "status": "completed",
         },
+        artifacts={"responses": str(output_file)},
     )
 
 

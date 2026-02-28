@@ -51,6 +51,7 @@ class TestExperimentRunner:
             encoding="utf-8",
         )
         cfg = load_run_config(config_path, overrides={"probe.learning_rate": "0.001"})
+        assert isinstance(cfg, ProbeConfig)
         assert cfg.probe.learning_rate == 0.001
 
     def test_run_experiment_returns_structured_result(self, tmp_path):
@@ -83,7 +84,7 @@ class TestExperimentRunner:
         result = run_experiment(config_path="quick", aliases_path=aliases_file)
         assert result.summary["run_name"] == "aliased"
 
-    def test_generate_action_dispatches(self, tmp_path):
+    def test_generate_action_requires_input_path(self, tmp_path):
         config_path = tmp_path / "run.yaml"
         config_path.write_text(
             "run_name: gen\naction: generate\n"
@@ -91,6 +92,16 @@ class TestExperimentRunner:
             "generation:\n  max_new_tokens: 64\n",
             encoding="utf-8",
         )
-        result = run_experiment(config_path=config_path)
-        assert result.summary["action"] == "generate"
-        assert result.summary["status"] == "configured"
+        with pytest.raises(ValueError, match="input_path is required"):
+            run_experiment(config_path=config_path)
+
+    def test_generate_action_missing_file_raises(self, tmp_path):
+        config_path = tmp_path / "run.yaml"
+        config_path.write_text(
+            "run_name: gen\naction: generate\n"
+            "model:\n  model_name: test-model\n"
+            "io:\n  input_path: nonexistent.jsonl\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(FileNotFoundError):
+            run_experiment(config_path=config_path)
