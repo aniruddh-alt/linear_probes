@@ -19,14 +19,12 @@ SEED = 42
 
 
 def load_labeled_data() -> tuple[list[dict], list[int]]:
-    """Load labeled JSONL and convert refusal labels to binary."""
-    # Also load responses for prompt+response concatenation
-    responses = {}
-    with (DATA_DIR / "responses.jsonl").open() as f:
-        for line in f:
-            r = json.loads(line)
-            responses[r["sample_id"]] = r["response"]
+    """Load labeled JSONL and convert refusal labels to binary.
 
+    Uses prompt-only text so activations capture the model's pre-response
+    representation (the "should I refuse?" feature), not surface-level
+    refusal text patterns.
+    """
     rows = []
     with (DATA_DIR / "labeled.jsonl").open() as f:
         for line in f:
@@ -35,11 +33,9 @@ def load_labeled_data() -> tuple[list[dict], list[int]]:
             label = 1 if "refusal" in label_str and "non-refusal" not in label_str else 0
             sid = row["sample_id"]
             prompt = row["original_prompt"]
-            response = responses.get(sid, row.get("original_response", ""))
-            # Probe on prompt+response so activations capture refusal behavior
             rows.append({
                 "id": sid,
-                "text": f"{prompt}\n{response}",
+                "text": prompt,
                 "label": label,
             })
     labels = [r["label"] for r in rows]
