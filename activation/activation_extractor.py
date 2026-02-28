@@ -81,6 +81,11 @@ class ActivationExtractor:
             and getattr(mc, f.name) is not None
             and (f.name not in self._BOOL_FLAGS or getattr(mc, f.name))
         }
+        # Convert string dtype to torch_dtype for transformers compatibility.
+        if "dtype" in model_kwargs:
+            dtype_str = model_kwargs.pop("dtype")
+            dtype_map = {"bfloat16": torch.bfloat16, "float16": torch.float16, "float32": torch.float32}
+            model_kwargs["torch_dtype"] = dtype_map.get(dtype_str, dtype_str)
         self.model = transformer_cls(mc.model_name, **model_kwargs)
         self.batch_size = self.extraction_params.batch_size
         self.default_activations = (
