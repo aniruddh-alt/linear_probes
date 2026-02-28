@@ -18,6 +18,8 @@ class ProbeParams(BaseConfig):
     epochs: int = 10
     learning_rate: float = 1e-3
     weight_decay: float = 1e-2
+    l1_weight: float = 0.0
+    pca_components: Optional[int] = None
     max_grad_norm: Optional[float] = None
     threshold: float = 0.5
     device: Optional[str] = None
@@ -34,6 +36,10 @@ class ProbeParams(BaseConfig):
             raise ValueError("learning_rate must be > 0.")
         if self.weight_decay < 0:
             raise ValueError("weight_decay must be >= 0.")
+        if self.l1_weight < 0:
+            raise ValueError("l1_weight must be >= 0.")
+        if self.pca_components is not None and self.pca_components <= 0:
+            raise ValueError("pca_components must be > 0 when provided.")
         if self.max_grad_norm is not None and self.max_grad_norm <= 0:
             raise ValueError("max_grad_norm must be > 0 when provided.")
         if not 0.0 < self.threshold < 1.0:

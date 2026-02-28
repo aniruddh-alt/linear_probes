@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import torch
+from sklearn.decomposition import PCA
 from torch.utils.data import DataLoader, Subset
 
 from activation.types import ExtractionResult
@@ -76,6 +77,10 @@ class LayerProbeSweepRunner:
             elif current_labels != dataset_labels:
                 raise ValueError("Labels must be identical across activation keys.")
 
+            if self.probe.pca_components is not None:
+                dataset = self._apply_pca(
+                    dataset, train_indices, self.probe.pca_components
+                )
             train_loader, val_loader, test_loader = self._build_loaders(
                 dataset, train_indices, val_indices, test_indices
             )
@@ -103,6 +108,10 @@ class LayerProbeSweepRunner:
             labels=labels,
             positive_indices=positive_indices,
         )
+        if self.probe.pca_components is not None:
+            first_dataset = self._apply_pca(
+                first_dataset, train_indices, self.probe.pca_components
+            )
         train_loader, _, test_loader = self._build_loaders(
             first_dataset, train_indices, val_indices, test_indices
         )
@@ -236,6 +245,21 @@ class LayerProbeSweepRunner:
             test_dataset, batch_size=self.sweep.batch_size, shuffle=False
         )
         return train_loader, val_loader, test_loader
+
+    @staticmethod
+    def _apply_pca(
+        dataset: ProbingDataset,
+        train_indices: list[int],
+        n_components: int,
+    ) -> ProbingDataset:
+        """Fit PCA on train split, transform all features in-place."""
+        all_features = dataset.features.float().numpy()
+        train_features = all_features[train_indices]
+        pca = PCA(n_components=min(n_components, train_features.shape[1]))
+        pca.fit(train_features)
+        transformed = pca.transform(all_features)
+        dataset.features = torch.from_numpy(transformed).to(dataset.features.dtype)
+        return dataset
 
     @staticmethod
     def _normalized_direction(trainer: BinaryLinearProbeTrainer) -> torch.Tensor:

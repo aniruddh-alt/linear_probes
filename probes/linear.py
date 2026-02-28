@@ -83,6 +83,9 @@ class BinaryLinearProbeTrainer:
                 y = labels.to(self.device).float().unsqueeze(1)
                 logits = self.model(x)
                 loss = self.criterion(logits, y)
+                if self.config.l1_weight > 0:
+                    l1 = self.model.linear.weight.abs().sum()
+                    loss = loss + self.config.l1_weight * l1
                 self.optimizer.zero_grad()
                 loss.backward()
                 if self.config.max_grad_norm is not None:

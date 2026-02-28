@@ -72,7 +72,9 @@ def main() -> None:
         probe=ProbeParams(
             epochs=20,
             learning_rate=1e-3,
-            weight_decay=0.1,
+            weight_decay=0.5,
+            l1_weight=1e-3,
+            pca_components=64,
             seed=SEED,
             bootstrap_samples=200,
             early_stopping_patience=5,

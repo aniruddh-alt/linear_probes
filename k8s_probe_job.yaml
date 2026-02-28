@@ -1,0 +1,75 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: aniruddhan-refusal-probes
+  namespace: oumi-science
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: worker-gpu-8x-h100-sxm5gdr-zjdfj-5pk5t
+      containers:
+      - name: probe-runner
+        image: ghcr.io/oumi-ai/oumi:latest
+        command: ["/bin/bash", "-c"]
+        args:
+        - |
+          set -ex
+
+          # Step 0: Setup
+          cd /workspace
+          git clone --branch toolkit-setup --single-branch https://github.com/aniruddh-alt/linear_probes.git
+          cd linear_probes
+          pip install -e .
+          pip install pdftext
+
+          # Step 1: Generate responses with Llama 3.1 8B
+          echo "=== STEP 1: Generating responses ==="
+          huggingface-cli login --token $HF_TOKEN
+          PYTHONPATH=. python -m cli.main run -c examples/refusal_probing/generate_responses.yaml
+
+          # Step 2: Label responses with Claude Sonnet
+          echo "=== STEP 2: Labeling responses ==="
+          oumi synth -c examples/refusal_probing/2_label_responses.yaml
+
+          # Step 3: Extract activations + train probes
+          echo "=== STEP 3: Extracting activations and training probes ==="
+          PYTHONPATH=. python examples/refusal_probing/run_pipeline.py
+
+          # Keep pod alive for 1 hour to allow kubectl cp
+          echo "=== DONE — pod will stay alive for 1h for result retrieval ==="
+          echo "Run: kubectl cp oumi-science/<pod-name>:/workspace/linear_probes/examples/refusal_probing/data/ ./results/"
+          sleep 3600
+        env:
+        - name: HF_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: aniruddhan-probe-secrets
+              key: HF_TOKEN
+        - name: ANTHROPIC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: aniruddhan-probe-secrets
+              key: ANTHROPIC_API_KEY
+        resources:
+          requests:
+            nvidia.com/gpu: 1
+            memory: "40Gi"
+            ephemeral-storage: "40Gi"
+          limits:
+            nvidia.com/gpu: 1
+            memory: "80Gi"
+            ephemeral-storage: "80Gi"
+        volumeMounts:
+        - name: workspace
+          mountPath: /workspace
+      volumes:
+      - name: workspace
+        emptyDir: {}
+      tolerations:
+      - key: "nvidia.com/gpu"
+        value: "true"
+        operator: "Equal"
+        effect: "NoSchedule"
+      restartPolicy: Never

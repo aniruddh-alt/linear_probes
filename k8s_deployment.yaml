@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aniruddhan-probes
+  namespace: oumi-science
+spec:
+  selector:
+    matchLabels:
+      name: aniruddhan-probes
+  template:
+    metadata:
+      labels:
+        name: aniruddhan-probes
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: worker-gpu-8x-h100-sxm5gdr-zjdfj-5pk5t
+      containers:
+      - name: oumi
+        image: ghcr.io/oumi-ai/oumi:latest
+        securityContext:
+          runAsUser: 0
+        command: ["sleep", "infinity"]
+        env:
+        - name: HF_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: aniruddhan-probe-secrets
+              key: HF_TOKEN
+        - name: ANTHROPIC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: aniruddhan-probe-secrets
+              key: ANTHROPIC_API_KEY
+        resources:
+          requests:
+            nvidia.com/gpu: 1
+            memory: "40Gi"
+            ephemeral-storage: "40Gi"
+          limits:
+            nvidia.com/gpu: 1
+            memory: "80Gi"
+            ephemeral-storage: "80Gi"
+        volumeMounts:
+        - name: workspace
+          mountPath: /workspace
+      volumes:
+      - name: workspace
+        emptyDir: {}
+      tolerations:
+      - key: "nvidia.com/gpu"
+        value: "true"
+        operator: "Equal"
+        effect: "NoSchedule"

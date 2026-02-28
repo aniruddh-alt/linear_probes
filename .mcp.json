@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "oumi-mcp": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/Users/aniruddhanramesh/dev/oumi/projects/oumi-mcp",
+        "run",
+        "oumi-mcp"
+      ],
+      "env": {}
+    }
+  }
+}
