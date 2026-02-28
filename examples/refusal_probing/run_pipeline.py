@@ -74,7 +74,7 @@ def main() -> None:
             learning_rate=1e-3,
             weight_decay=0.1,
             l1_weight=0.0,
-            pca_components=256,
+            pca_components=128,
             seed=SEED,
             bootstrap_samples=200,
             early_stopping_patience=5,

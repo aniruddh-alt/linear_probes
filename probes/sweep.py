@@ -255,7 +255,7 @@ class LayerProbeSweepRunner:
         """Fit PCA on train split, transform all features in-place."""
         all_features = dataset.features.float().numpy()
         train_features = all_features[train_indices]
-        pca = PCA(n_components=min(n_components, train_features.shape[1]))
+        pca = PCA(n_components=min(n_components, *train_features.shape))
         pca.fit(train_features)
         transformed = pca.transform(all_features)
         dataset.features = torch.from_numpy(transformed).to(dataset.features.dtype)
