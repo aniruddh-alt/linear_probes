@@ -119,7 +119,9 @@ def _action_generate(cfg: GenerateConfig) -> RunResult:
     builder = ProbingSampleBuilder.from_file(input_file)
     bundle = builder.to_samples(text_key="prompt", label_key=None, id_key=None)
 
-    generator = ResponseGenerator(model=cfg.model, generation=cfg.generation)
+    generator = ResponseGenerator(
+        model=cfg.model, generation=cfg.generation, steering=cfg.steering,
+    )
     result = generator.generate(bundle)
     result.to_jsonl(output_file)
 

@@ -25,6 +25,41 @@ class TestGenerateConfig:
         assert cfg.generation.max_new_tokens == 128
         assert cfg.io.output_dir == "artifacts/refusal/"
 
+    def test_steering_defaults(self):
+        cfg = GenerateConfig()
+        assert cfg.steering.enabled is False
+        assert cfg.steering.mode == "project_subtract"
+
+    def test_steering_from_dict(self):
+        cfg = GenerateConfig.from_dict({
+            "model": {"model_name": "test"},
+            "steering": {
+                "enabled": True,
+                "vector_path": "v.pt",
+                "layers": [14, 15],
+                "strength": 20.0,
+                "mode": "additive",
+            },
+        })
+        assert cfg.steering.enabled is True
+        assert cfg.steering.layers == [14, 15]
+        assert cfg.steering.strength == 20.0
+
+    def test_steering_yaml_roundtrip(self, tmp_path):
+        cfg = GenerateConfig.from_dict({
+            "steering": {
+                "enabled": True,
+                "vector_path": "w.pt",
+                "layers": [10],
+                "mode": "project_subtract",
+            },
+        })
+        path = tmp_path / "gen_steer.yaml"
+        cfg.to_yaml(path)
+        loaded = GenerateConfig.from_yaml(path)
+        assert loaded.steering.enabled is True
+        assert loaded.steering.layers == [10]
+
     def test_yaml_roundtrip(self, tmp_path):
         cfg = GenerateConfig(run_name="gen_test")
         cfg.model.model_name = "test-model"
