@@ -20,7 +20,7 @@ generation:
   max_new_tokens: 256
   temperature: 1.0
   do_sample: false
-  batch_size: 4
+  batch_size: 32
 
 io:
   input_path: examples/refusal_probing/data/prompts.jsonl

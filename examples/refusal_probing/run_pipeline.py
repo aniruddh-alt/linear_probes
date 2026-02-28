@@ -14,7 +14,7 @@ DATA_DIR = Path("examples/refusal_probing/data")
 MODEL_NAME = "meta-llama/Llama-3.1-8B-Instruct"
 ARTIFACT_PATH = DATA_DIR / "activations"
 NUM_LAYERS = 32
-BATCH_SIZE = 4
+BATCH_SIZE = 16
 SEED = 42
 
 
@@ -81,7 +81,7 @@ def main() -> None:
             bootstrap_samples=200,
             early_stopping_patience=5,
         ),
-        sweep=SweepParams(activation_targets=targets, batch_size=32),
+        sweep=SweepParams(activation_targets=targets, batch_size=128),
     )
     result = runner.run(
         extraction,
