@@ -13,14 +13,14 @@ seed: 42
 action: generate
 
 model:
-  model_name: Qwen/Qwen2.5-1.5B-Instruct
+  model_name: meta-llama/Llama-3.1-8B-Instruct
   dtype: bfloat16
 
 generation:
   max_new_tokens: 256
   temperature: 1.0
   do_sample: false
-  batch_size: 8
+  batch_size: 4
 
 io:
   input_path: examples/refusal_probing/data/prompts.jsonl
