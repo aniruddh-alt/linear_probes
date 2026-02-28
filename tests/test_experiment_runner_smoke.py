@@ -1,29 +1,52 @@
 """Smoke tests for the experiment runner API."""
-
 from __future__ import annotations
 
 import pytest
 
 from runners.experiment_runner import load_run_config, run_experiment, RunResult
+from core.configs.generate_config import GenerateConfig
+from core.configs.extract_config import ExtractConfig
+from core.configs.probe_config import ProbeConfig
 
 
 class TestExperimentRunner:
-    def test_load_run_config_from_yaml(self, tmp_path):
+    def test_load_probe_config_from_yaml(self, tmp_path):
         config_path = tmp_path / "run.yaml"
         config_path.write_text(
             "run_name: smoke\nseed: 0\naction: probe_sweep\n"
-            "model:\n  model_name: Qwen/Qwen2.5-1.5B-Instruct\n",
+            "probe:\n  learning_rate: 0.01\n",
             encoding="utf-8",
         )
         cfg = load_run_config(config_path)
+        assert isinstance(cfg, ProbeConfig)
         assert cfg.run_name == "smoke"
-        assert cfg.model.model_name == "Qwen/Qwen2.5-1.5B-Instruct"
+        assert cfg.probe.learning_rate == 0.01
 
-    def test_load_run_config_with_overrides(self, tmp_path):
+    def test_load_generate_config_from_yaml(self, tmp_path):
+        config_path = tmp_path / "gen.yaml"
+        config_path.write_text(
+            "run_name: gen\naction: generate\n"
+            "model:\n  model_name: test-model\n",
+            encoding="utf-8",
+        )
+        cfg = load_run_config(config_path)
+        assert isinstance(cfg, GenerateConfig)
+        assert cfg.model.model_name == "test-model"
+
+    def test_load_extract_config_from_yaml(self, tmp_path):
+        config_path = tmp_path / "ext.yaml"
+        config_path.write_text(
+            "run_name: ext\naction: extract\n"
+            "model:\n  model_name: test-model\n",
+            encoding="utf-8",
+        )
+        cfg = load_run_config(config_path)
+        assert isinstance(cfg, ExtractConfig)
+
+    def test_load_config_with_overrides(self, tmp_path):
         config_path = tmp_path / "run.yaml"
         config_path.write_text(
-            "run_name: base\nseed: 0\naction: probe_sweep\n"
-            "model:\n  model_name: base-model\n"
+            "run_name: base\naction: probe_sweep\n"
             "probe:\n  learning_rate: 0.01\n",
             encoding="utf-8",
         )
@@ -33,20 +56,17 @@ class TestExperimentRunner:
     def test_run_experiment_returns_structured_result(self, tmp_path):
         config_path = tmp_path / "run.yaml"
         config_path.write_text(
-            "run_name: smoke\nseed: 0\naction: probe_sweep\n"
-            "model:\n  model_name: Qwen/Qwen2.5-1.5B-Instruct\n",
+            "run_name: smoke\naction: probe_sweep\n",
             encoding="utf-8",
         )
         result = run_experiment(config_path=config_path, overrides={})
         assert isinstance(result, RunResult)
-        assert "run_name" in result.summary
         assert result.summary["run_name"] == "smoke"
 
     def test_run_experiment_unknown_action_raises(self, tmp_path):
         config_path = tmp_path / "run.yaml"
         config_path.write_text(
-            "run_name: bad\naction: nonexistent\n"
-            "model:\n  model_name: m\n",
+            "run_name: bad\naction: nonexistent\n",
             encoding="utf-8",
         )
         with pytest.raises(ValueError, match="Unknown action"):
@@ -57,12 +77,10 @@ class TestExperimentRunner:
         aliases_file.write_text("quick: " + str(tmp_path / "quick.yaml") + "\n", encoding="utf-8")
         config_file = tmp_path / "quick.yaml"
         config_file.write_text(
-            "run_name: aliased\naction: probe_sweep\nmodel:\n  model_name: m\n",
+            "run_name: aliased\naction: probe_sweep\n",
             encoding="utf-8",
         )
-        result = run_experiment(
-            config_path="quick", aliases_path=aliases_file
-        )
+        result = run_experiment(config_path="quick", aliases_path=aliases_file)
         assert result.summary["run_name"] == "aliased"
 
     def test_generate_action_dispatches(self, tmp_path):
