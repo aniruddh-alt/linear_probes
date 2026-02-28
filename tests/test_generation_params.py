@@ -22,14 +22,14 @@ class TestGenerationParams:
         assert loaded.max_new_tokens == 128
         assert loaded.temperature == 0.7
 
-    def test_run_config_includes_generation(self):
-        from core.configs.run_config import RunConfig
-        cfg = RunConfig()
+    def test_generate_config_includes_generation(self):
+        from core.configs.generate_config import GenerateConfig
+        cfg = GenerateConfig()
         assert hasattr(cfg, "generation")
         assert cfg.generation.max_new_tokens == 256
 
-    def test_run_config_yaml_with_generation(self, tmp_path):
-        from core.configs.run_config import RunConfig
+    def test_generate_config_yaml_with_generation(self, tmp_path):
+        from core.configs.generate_config import GenerateConfig
         yaml_text = """
 run_name: gen-test
 action: generate
@@ -41,6 +41,6 @@ generation:
 """
         path = tmp_path / "run.yaml"
         path.write_text(yaml_text, encoding="utf-8")
-        cfg = RunConfig.from_yaml(path)
+        cfg = GenerateConfig.from_yaml(path)
         assert cfg.generation.max_new_tokens == 64
         assert cfg.generation.temperature == 0.5

@@ -1,15 +1,7 @@
-# Quickstart: refusal probe sweep on Qwen2.5-1.5B
+# Quickstart: refusal probe sweep
 run_name: quickstart_probe
 seed: 0
 action: probe_sweep
-
-model:
-  model_name: Qwen/Qwen2.5-1.5B-Instruct
-
-extraction:
-  batch_size: 4
-  token_index: -1
-  to_cpu: true
 
 probe:
   epochs: 20

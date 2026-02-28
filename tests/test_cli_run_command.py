@@ -23,7 +23,7 @@ class TestCli:
     def test_main_run_command(self, tmp_path):
         config_path = tmp_path / "run.yaml"
         config_path.write_text(
-            "run_name: cli_test\naction: probe_sweep\nmodel:\n  model_name: m\n",
+            "run_name: cli_test\naction: probe_sweep\n",
             encoding="utf-8",
         )
         rc = main(["run", "-c", str(config_path)])
