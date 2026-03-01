@@ -9,18 +9,20 @@ from typing import Any, Union
 from omegaconf import OmegaConf
 
 from core.configs.base import BaseConfig
+from core.configs.diff_means_config import DiffMeansConfig
 from core.configs.extract_config import ExtractConfig
 from core.configs.generate_config import GenerateConfig
 from core.configs.probe_config import ProbeConfig
 from core.configs.aliases import resolve_config_alias
 from core.configs.overrides import apply_dot_overrides
 
-StageConfig = Union[GenerateConfig, ExtractConfig, ProbeConfig]
+StageConfig = Union[GenerateConfig, ExtractConfig, ProbeConfig, DiffMeansConfig]
 
 STAGE_CONFIG_MAP: dict[str, type[BaseConfig]] = {
     "generate":    GenerateConfig,
     "extract":     ExtractConfig,
     "probe_sweep": ProbeConfig,
+    "diff_means":  DiffMeansConfig,
 }
 
 

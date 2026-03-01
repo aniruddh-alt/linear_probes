@@ -1,6 +1,7 @@
 """Oumi-style typed configuration modules."""
 
 from core.configs.base import BaseConfig
+from core.configs.diff_means_config import DiffMeansConfig
 from core.configs.extract_config import ExtractConfig
 from core.configs.generate_config import GenerateConfig
 from core.configs.probe_config import ProbeConfig
@@ -15,6 +16,7 @@ from core.configs.params.sweep_params import SweepParams
 
 __all__ = [
     "BaseConfig",
+    "DiffMeansConfig",
     "ExtractConfig",
     "ExtractionParams",
     "GenerateConfig",
