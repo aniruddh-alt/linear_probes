@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import torch
 from activation import ActivationExtractor
 from core.configs import ExtractionParams, ModelParams, ProbeParams, SweepParams
 from dataset import ProbingSampleBuilder
@@ -103,7 +104,13 @@ def main() -> None:
             acc = acc[0]
         print(f"  {key:<18} {auroc:>10.4f} {acc:>10.4f}")
 
-    # 5. Visualize
+    # 5. Save direction vector
+    direction_path = DATA_DIR / "refusal_direction.pt"
+    torch.save(result.best_direction, direction_path)
+    best_layer_idx = int(result.best_key.split(":")[-1])
+    print(f"\nSaved refusal direction to {direction_path} (layer {best_layer_idx})")
+
+    # 6. Visualize
     analyzer = ProbeAnalyzer(list(result.probes.values()))
     analyzer.auroc_analysis()
     analyzer.cosine_similarity_analysis()
