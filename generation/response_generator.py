@@ -74,11 +74,12 @@ def _make_steering_hook(
             h = output[0]
         else:
             h = output[0]
+        v = vector.to(dtype=h.dtype, device=h.device)
         if mode == "project_subtract":
-            dot = (h * vector).sum(dim=-1, keepdim=True)
-            h = h - dot * vector
+            dot = (h * v).sum(dim=-1, keepdim=True)
+            h = h - dot * v
         elif mode == "additive":
-            h = h + strength * vector
+            h = h + strength * v
         if isinstance(output, torch.Tensor):
             return h
         if isinstance(output, tuple):
