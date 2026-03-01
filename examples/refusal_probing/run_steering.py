@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from transformers import AutoTokenizer
+
 from core.configs.params.generation_params import GenerationParams
 from core.configs.params.model_params import ModelParams
 from core.configs.params.steering_params import SteeringParams
@@ -33,10 +35,24 @@ CONTROL_PROMPTS = [
 STEER_LAYERS = list(range(14, 31))
 
 
+def _apply_chat_template(prompts: list[str], model_name: str) -> list[str]:
+    """Wrap raw prompts in the model's chat template."""
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    formatted = []
+    for p in prompts:
+        messages = [{"role": "user", "content": p}]
+        text = tokenizer.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
+        )
+        formatted.append(text)
+    return formatted
+
+
 def main() -> None:
     model_params = ModelParams(model_name=MODEL_NAME, dtype="bfloat16")
     gen_params = GenerationParams(max_new_tokens=200, temperature=0.0, do_sample=False)
-    all_prompts = TEST_PROMPTS + CONTROL_PROMPTS
+    raw_prompts = TEST_PROMPTS + CONTROL_PROMPTS
+    all_prompts = _apply_chat_template(raw_prompts, MODEL_NAME)
 
     # Baseline: no steering
     print("=" * 60)
@@ -71,7 +87,7 @@ def main() -> None:
     print("\n" + "=" * 60)
     print("COMPARISON")
     print("=" * 60)
-    for i, prompt in enumerate(all_prompts):
+    for i, prompt in enumerate(raw_prompts):
         tag = "HARMFUL" if i < len(TEST_PROMPTS) else "CONTROL"
         b = baseline_result.responses[i][:150]
         s = steered_result.responses[i][:150]
