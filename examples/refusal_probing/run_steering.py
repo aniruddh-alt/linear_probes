@@ -32,7 +32,7 @@ CONTROL_PROMPTS = [
 ]
 
 # Steer across layers where refusal signal is strong (AUROC > 0.98)
-STEER_LAYERS = list(range(32))
+STEER_LAYERS = list(range(14, 21))
 
 
 def _apply_chat_template(prompts: list[str], model_name: str) -> list[str]:
@@ -66,14 +66,14 @@ def main() -> None:
 
     # Steered: subtract refusal direction
     print("\n" + "=" * 60)
-    print("STEERED (additive, strength=-10, all layers)")
+    print("STEERED (additive, strength=-1, layers 14-20)")
     print("=" * 60)
     steering = SteeringParams(
         enabled=True,
         vector_path=str(DIRECTION_PATH),
         layers=STEER_LAYERS,
         mode="additive",
-        strength=-10.0,
+        strength=-1.0,
         normalize=True,
     )
     steered = ResponseGenerator(
