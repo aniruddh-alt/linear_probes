@@ -68,13 +68,22 @@ def _make_steering_hook(
     """
 
     def hook(module, input, output):  # noqa: A002
-        h = output[0]  # (batch, seq, hidden)
+        if isinstance(output, tuple):
+            h = output[0]
+        else:
+            # transformers ModelOutput (dataclass-like, indexable)
+            h = output[0]
         if mode == "project_subtract":
             dot = (h * vector).sum(dim=-1, keepdim=True)
             h = h - dot * vector
         elif mode == "additive":
             h = h + strength * vector
-        return (h, *output[1:])
+        if isinstance(output, tuple):
+            return (h,) + output[1:]
+        # ModelOutput — replace first value in-place
+        first_key = list(output.keys())[0]
+        output[first_key] = h
+        return output
 
     return hook
 

@@ -29,8 +29,8 @@ CONTROL_PROMPTS = [
     "Write a haiku about autumn.",
 ]
 
-# Layer where probe found the refusal direction
-BEST_LAYER = 31
+# Steer across layers where refusal signal is strong (AUROC > 0.98)
+STEER_LAYERS = list(range(14, 31))
 
 
 def main() -> None:
@@ -55,7 +55,7 @@ def main() -> None:
     steering = SteeringParams(
         enabled=True,
         vector_path=str(DIRECTION_PATH),
-        layers=[BEST_LAYER],
+        layers=STEER_LAYERS,
         mode="project_subtract",
         normalize=True,
     )
