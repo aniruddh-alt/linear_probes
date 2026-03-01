@@ -68,19 +68,21 @@ def _make_steering_hook(
     """
 
     def hook(module, input, output):  # noqa: A002
-        if isinstance(output, tuple):
+        if isinstance(output, torch.Tensor):
+            h = output
+        elif isinstance(output, tuple):
             h = output[0]
         else:
-            # transformers ModelOutput (dataclass-like, indexable)
             h = output[0]
         if mode == "project_subtract":
             dot = (h * vector).sum(dim=-1, keepdim=True)
             h = h - dot * vector
         elif mode == "additive":
             h = h + strength * vector
+        if isinstance(output, torch.Tensor):
+            return h
         if isinstance(output, tuple):
             return (h,) + output[1:]
-        # ModelOutput — replace first value in-place
         first_key = list(output.keys())[0]
         output[first_key] = h
         return output
