@@ -33,15 +33,15 @@ class LinearProbe(nn.Module):
         return self.linear(x)
 
 
-class BinaryLinearProbeTrainer:
-    """End-to-end trainer/evaluator for binary linear probes."""
+class BinaryProbeTrainer:
+    """End-to-end trainer/evaluator for binary probes."""
 
-    def __init__(self, input_dim: int, config: ProbeParams | None = None):
+    def __init__(self, model: nn.Module, config: ProbeParams | None = None):
         self.config = config or ProbeParams()
         if self.config.seed is not None:
             torch.manual_seed(self.config.seed)
         self.device = torch.device(self.config.device or "cpu")
-        self.model = LinearProbe(input_dim=input_dim, output_dim=1).to(self.device)
+        self.model = model.to(self.device)
         self.criterion = nn.BCEWithLogitsLoss()
         self.optimizer = torch.optim.AdamW(
             self.model.parameters(),
@@ -61,6 +61,20 @@ class BinaryLinearProbeTrainer:
             threshold=self.config.threshold, zero_division=0
         ).to(self.device)
 
+    def _unpack_batch(
+        self, batch: tuple[torch.Tensor, ...]
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | None]:
+        if len(batch) == 3:
+            features, labels, mask = batch
+            return features.to(self.device), labels, mask.to(self.device)
+        features, labels = batch[0], batch[1]
+        return features.to(self.device), labels, None
+
+    def _forward(self, x: torch.Tensor, mask: torch.Tensor | None) -> torch.Tensor:
+        if mask is not None:
+            return self.model(x, mask=mask)
+        return self.model(x)
+
     def fit(
         self,
         train_loader: DataLoader[tuple[torch.Tensor, torch.Tensor]],
@@ -78,13 +92,13 @@ class BinaryLinearProbeTrainer:
             self.model.train()
             running_loss = 0.0
             total = 0
-            for features, labels in train_loader:
-                x = features.to(self.device)
-                y = labels.to(self.device).float().unsqueeze(1)
-                logits = self.model(x)
+            for batch in train_loader:
+                x, labels_batch, mask = self._unpack_batch(batch)
+                y = labels_batch.to(self.device).float().unsqueeze(1)
+                logits = self._forward(x, mask)
                 loss = self.criterion(logits, y)
                 if self.config.l1_weight > 0:
-                    l1 = self.model.linear.weight.abs().sum()
+                    l1 = sum(p.abs().sum() for p in self.model.parameters())
                     loss = loss + self.config.l1_weight * l1
                 self.optimizer.zero_grad()
                 loss.backward()
@@ -155,14 +169,14 @@ class BinaryLinearProbeTrainer:
         all_probs: list[torch.Tensor] = []
         all_labels: list[torch.Tensor] = []
 
-        for features, labels in data_loader:
-            x = features.to(self.device)
-            y = labels.to(self.device).float().unsqueeze(1)
-            logits = self.model(x)
+        for batch in data_loader:
+            x, labels_batch, mask = self._unpack_batch(batch)
+            y = labels_batch.to(self.device).float().unsqueeze(1)
+            logits = self._forward(x, mask)
             loss = self.criterion(logits, y)
 
             probs = torch.sigmoid(logits).squeeze(-1)
-            batch_labels = labels.to(self.device).long()
+            batch_labels = labels_batch.to(self.device).long()
             self.accuracy_metric.update(probs, batch_labels)
             self.precision_metric.update(probs, batch_labels)
             self.recall_metric.update(probs, batch_labels)
@@ -233,6 +247,14 @@ class BinaryLinearProbeTrainer:
             "accuracy_ci": acc_ci,
             "auroc_ci": auroc_ci,
         }
+
+
+class BinaryLinearProbeTrainer(BinaryProbeTrainer):
+    """Backward-compatible wrapper that creates a LinearProbe internally."""
+
+    def __init__(self, input_dim: int, config: ProbeParams | None = None):
+        model = LinearProbe(input_dim=input_dim, output_dim=1)
+        super().__init__(model=model, config=config)
 
 
 def run_probe_with_controls(

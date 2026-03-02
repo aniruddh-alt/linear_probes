@@ -1,6 +1,7 @@
 from .analyze import ProbeAnalyzer
 from .linear import (
     BinaryLinearProbeTrainer,
+    BinaryProbeTrainer,
     LinearProbe,
     run_probe_with_controls,
 )
@@ -11,6 +12,7 @@ from .types import LayerProbeSweepResult, TrainedLayerProbe
 
 __all__ = [
     "LinearProbe",
+    "BinaryProbeTrainer",
     "BinaryLinearProbeTrainer",
     "run_probe_with_controls",
     "TrainedLayerProbe",
