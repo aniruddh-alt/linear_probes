@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Any, Optional
 
 from core.configs.base import BaseConfig
 
@@ -28,6 +28,8 @@ class ProbeParams(BaseConfig):
     early_stopping_min_delta: float = 1e-4
     bootstrap_samples: int = 0
     bootstrap_confidence: float = 0.95
+    probe_type: str = "linear"
+    probe_kwargs: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.epochs <= 0:

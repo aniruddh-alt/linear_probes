@@ -32,3 +32,15 @@ class TestProbeConfig:
         loaded = ProbeConfig.from_yaml(path)
         assert loaded.run_name == "probe_test"
         assert loaded.action == "probe_sweep"
+
+    def test_probe_params_has_probe_type_field(self):
+        from core.configs import ProbeParams
+        params = ProbeParams()
+        assert params.probe_type == "linear"
+        assert params.probe_kwargs == {}
+
+    def test_probe_params_accepts_custom_probe_type(self):
+        from core.configs import ProbeParams
+        params = ProbeParams(probe_type="attention", probe_kwargs={"foo": 1})
+        assert params.probe_type == "attention"
+        assert params.probe_kwargs == {"foo": 1}
