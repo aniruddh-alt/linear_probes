@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Iterable, Mapping, Sequence, Union
 
 import torch
 from torch.utils.data import Dataset
@@ -15,12 +15,39 @@ from activation.storage import (
 )
 
 
-class ProbingDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
-    """Simple (activation, label) dataset for binary linear probes."""
+class ProbingDataset(Dataset[Union[tuple[torch.Tensor, torch.Tensor], tuple[torch.Tensor, torch.Tensor, torch.Tensor]]]):
+    """Dataset for binary probes supporting pooled (N, D) and sequence (variable S, D) modes."""
 
     def __init__(
         self, features: Sequence[torch.Tensor] | torch.Tensor, labels: Sequence[int]
     ):
+        label_values = [int(label) for label in labels]
+        if any(label not in (0, 1) for label in label_values):
+            raise ValueError("Binary probe labels must be 0 or 1.")
+        self.labels = torch.tensor(label_values, dtype=torch.long)
+
+        # Detect sequence mode: list of 2D tensors with varying first dimension
+        self.sequence_mode = False
+        self._sequence_features: list[torch.Tensor] | None = None
+
+        if isinstance(features, list) and features and isinstance(features[0], torch.Tensor):
+            if features[0].ndim == 2:
+                # Check if all have same hidden dim but possibly different seq lengths
+                hidden_dim = features[0].shape[1]
+                is_variable_length = any(f.shape[0] != features[0].shape[0] for f in features)
+                all_2d_same_hidden = all(f.ndim == 2 and f.shape[1] == hidden_dim for f in features)
+                if is_variable_length and all_2d_same_hidden:
+                    self.sequence_mode = True
+                    self._sequence_features = [f.detach().float() for f in features]
+                    if len(self._sequence_features) != len(labels):
+                        raise ValueError(
+                            "features and labels must have same length, got "
+                            f"{len(self._sequence_features)} and {len(labels)}."
+                        )
+                    self.features = torch.empty(0)  # placeholder for compatibility
+                    return
+
+        # Pooled mode (existing behavior)
         features_tensor = self._as_feature_matrix(features)
         if int(features_tensor.shape[0]) != len(labels):
             raise ValueError(
@@ -28,15 +55,17 @@ class ProbingDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
                 f"{int(features_tensor.shape[0])} and {len(labels)}."
             )
         self.features = features_tensor
-        label_values = [int(label) for label in labels]
-        if any(label not in (0, 1) for label in label_values):
-            raise ValueError("Binary probe labels must be 0 or 1.")
-        self.labels = torch.tensor(label_values, dtype=torch.long)
 
     def __len__(self) -> int:
+        if self.sequence_mode and self._sequence_features is not None:
+            return len(self._sequence_features)
         return int(self.features.shape[0])
 
-    def __getitem__(self, index: int) -> tuple[torch.Tensor, torch.Tensor]:
+    def __getitem__(self, index: int) -> tuple[torch.Tensor, ...]:
+        if self.sequence_mode and self._sequence_features is not None:
+            feat = self._sequence_features[index]
+            mask = torch.ones(feat.shape[0], dtype=torch.float32)
+            return feat, self.labels[index], mask
         return self.features[index], self.labels[index]
 
     @classmethod
@@ -48,13 +77,7 @@ class ProbingDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
         labels: Sequence[int] | None = None,
         positive_indices: Iterable[int] | None = None,
     ) -> "ProbingDataset":
-        """Build dataset from one activation stream in an ExtractionResult.
-
-        Label resolution order:
-        1. Explicit `labels` argument.
-        2. `extraction["labels"]` if present and fully labeled.
-        3. All-zero labels, optionally flipped via `positive_indices`.
-        """
+        """Build dataset from one activation stream in an ExtractionResult."""
         storage = extraction.get("storage")
         if activation_key not in extraction["activations"] and not (
             isinstance(storage, dict)
@@ -65,10 +88,14 @@ class ProbingDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
                 f"activation_key '{activation_key}' not found. Available keys: {keys}"
             )
 
-        features = cls._resolve_activation_tensor(
-            extraction, activation_key=activation_key
-        )
-        num_features = int(features.shape[0])
+        raw_features = cls._resolve_raw_features(extraction, activation_key=activation_key)
+
+        # Determine sample count
+        if isinstance(raw_features, list):
+            num_features = len(raw_features)
+        else:
+            num_features = int(raw_features.shape[0])
+
         sample_ids = extraction.get("sample_ids")
         if sample_ids is not None and len(sample_ids) != num_features:
             raise ValueError(
@@ -101,7 +128,11 @@ class ProbingDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
                             f"positive index {idx} out of range for {num_features} samples."
                         )
                     labels[idx] = 1
-        return cls(features=features, labels=labels)
+
+        # Pass raw features (list or tensor) — constructor detects mode
+        if isinstance(raw_features, list):
+            return cls(features=raw_features, labels=labels)
+        return cls(features=cls._as_feature_matrix(raw_features), labels=labels)
 
     @classmethod
     def from_extraction_path(
@@ -157,9 +188,28 @@ class ProbingDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
         return torch.stack(flat_features, dim=0)
 
     @classmethod
+    def _resolve_raw_features(
+        cls, extraction: Mapping[str, Any], *, activation_key: str
+    ) -> torch.Tensor | list[torch.Tensor]:
+        """Resolve features without forcing to matrix -- preserves list-of-2D for sequence mode."""
+        raw_features = load_activation_value(
+            extraction,
+            activation_key=activation_key,
+            map_location="cpu",
+        )
+        if isinstance(raw_features, torch.Tensor):
+            return raw_features
+        if isinstance(raw_features, (list, Sequence)):
+            return list(raw_features)
+        raise TypeError(
+            f"Unsupported activation value format for key '{activation_key}'."
+        )
+
+    @classmethod
     def _resolve_activation_tensor(
         cls, extraction: Mapping[str, Any], *, activation_key: str
     ) -> torch.Tensor:
+        """Legacy method - always returns flattened tensor."""
         raw_features = load_activation_value(
             extraction,
             activation_key=activation_key,

@@ -7,6 +7,7 @@ from pathlib import Path
 from safetensors.torch import save_file
 import torch
 
+from dataset.collate import sequence_collate_fn
 from dataset.probing_dataset import ProbingDataset
 
 
@@ -18,7 +19,7 @@ class ProbingDatasetTests(unittest.TestCase):
                 labels=[0, 1],
             )
 
-    def test_from_extraction_result_raises_on_inconsistent_dims(self) -> None:
+    def test_from_extraction_result_variable_length_2d_creates_sequence_mode(self) -> None:
         extraction = {
             "activations": {
                 "layers_output:0": [
@@ -28,11 +29,12 @@ class ProbingDatasetTests(unittest.TestCase):
             },
             "labels": [0, 1],
         }
-        with self.assertRaisesRegex(ValueError, "same dimensionality"):
-            ProbingDataset.from_extraction_result(
-                extraction,
-                activation_key="layers_output:0",
-            )
+        ds = ProbingDataset.from_extraction_result(
+            extraction,
+            activation_key="layers_output:0",
+        )
+        self.assertTrue(ds.sequence_mode)
+        self.assertEqual(len(ds), 2)
 
     def test_from_extraction_path_uses_single_available_key_when_implicit(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -168,6 +170,59 @@ class ProbingDatasetTests(unittest.TestCase):
                     manifest_path,
                     activation_key="layers_output:0",
                 )
+
+
+
+class SequenceModeProbingDatasetTests(unittest.TestCase):
+    def test_sequence_dataset_returns_3_tuple(self) -> None:
+        """Variable-length 2D features should trigger sequence mode."""
+        features = [torch.randn(5, 8), torch.randn(10, 8), torch.randn(3, 8)]
+        ds = ProbingDataset(features=features, labels=[0, 1, 0])
+        self.assertEqual(len(ds), 3)
+        item = ds[0]
+        self.assertEqual(len(item), 3)  # (features, label, mask)
+        self.assertEqual(item[0].shape, (5, 8))
+        self.assertTrue(torch.all(item[2] == 1))  # all-ones mask
+
+    def test_pooled_dataset_returns_2_tuple(self) -> None:
+        """Stacked 2D tensor features should still return 2-tuple."""
+        features = torch.randn(4, 8)
+        ds = ProbingDataset(features=features, labels=[0, 1, 0, 1])
+        item = ds[0]
+        self.assertEqual(len(item), 2)
+
+    def test_uniform_length_list_stays_pooled(self) -> None:
+        """List of same-shape 1D features should stay in pooled mode."""
+        features = [torch.randn(8) for _ in range(4)]
+        ds = ProbingDataset(features=features, labels=[0, 1, 0, 1])
+        item = ds[0]
+        self.assertEqual(len(item), 2)  # pooled mode, no mask
+
+    def test_sequence_collate_pads_to_max_len(self) -> None:
+        features = [torch.randn(3, 4), torch.randn(5, 4)]
+        ds = ProbingDataset(features=features, labels=[0, 1])
+        batch = [ds[0], ds[1]]
+        padded_features, labels, mask = sequence_collate_fn(batch)
+        self.assertEqual(padded_features.shape, (2, 5, 4))
+        self.assertEqual(mask.shape, (2, 5))
+        self.assertEqual(mask[0, :3].sum().item(), 3)
+        self.assertEqual(mask[0, 3:].sum().item(), 0)
+        self.assertEqual(mask[1].sum().item(), 5)
+
+    def test_sequence_from_extraction_result(self) -> None:
+        """from_extraction_result should support list-of-2D activations."""
+        features = [torch.randn(5, 4), torch.randn(3, 4)]
+        extraction = {
+            "activations": {"layers_output:0": features},
+            "labels": [0, 1],
+        }
+        ds = ProbingDataset.from_extraction_result(
+            extraction, activation_key="layers_output:0"
+        )
+        self.assertEqual(len(ds), 2)
+        item = ds[0]
+        self.assertEqual(len(item), 3)
+        self.assertEqual(item[0].shape, (5, 4))
 
 
 if __name__ == "__main__":
