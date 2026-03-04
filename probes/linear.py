@@ -271,9 +271,11 @@ def run_probe_with_controls(
     - shuffled_labels: train on a random permutation of training labels.
     - random_features: train/eval on Gaussian random features.
     """
+    from probes.architectures import build_probe
+
     base_config = config or ProbeParams()
-    train_x, train_y = _loader_to_tensors(train_loader)
-    eval_x, eval_y = _loader_to_tensors(eval_loader)
+    train_x, train_y, train_mask = _loader_to_tensors(train_loader)
+    eval_x, eval_y, eval_mask = _loader_to_tensors(eval_loader)
 
     real_runs: list[dict[str, float | tuple[float, float]]] = []
     shuffled_runs: list[dict[str, float | tuple[float, float]]] = []
@@ -281,24 +283,24 @@ def run_probe_with_controls(
 
     for seed in seeds:
         run_config = replace(base_config, seed=int(seed))
-        trainer = BinaryLinearProbeTrainer(input_dim=input_dim, config=run_config)
-        trainer.fit(_tensor_loader(train_x, train_y, train_loader.batch_size))
+        model = build_probe(base_config.probe_type, input_dim, **base_config.probe_kwargs)
+        trainer = BinaryProbeTrainer(model=model, config=run_config)
+        trainer.fit(_tensor_loader(train_x, train_y, train_loader.batch_size, train_mask))
         real_runs.append(
-            trainer.evaluate(_tensor_loader(eval_x, eval_y, eval_loader.batch_size))
+            trainer.evaluate(_tensor_loader(eval_x, eval_y, eval_loader.batch_size, eval_mask))
         )
 
         generator = torch.Generator().manual_seed(int(seed) + 1_000)
         permutation = torch.randperm(len(train_y), generator=generator)
         shuffled_y = train_y[permutation]
-        shuffled_trainer = BinaryLinearProbeTrainer(
-            input_dim=input_dim, config=run_config
-        )
+        shuffled_model = build_probe(base_config.probe_type, input_dim, **base_config.probe_kwargs)
+        shuffled_trainer = BinaryProbeTrainer(model=shuffled_model, config=run_config)
         shuffled_trainer.fit(
-            _tensor_loader(train_x, shuffled_y, train_loader.batch_size)
+            _tensor_loader(train_x, shuffled_y, train_loader.batch_size, train_mask)
         )
         shuffled_runs.append(
             shuffled_trainer.evaluate(
-                _tensor_loader(eval_x, eval_y, eval_loader.batch_size)
+                _tensor_loader(eval_x, eval_y, eval_loader.batch_size, eval_mask)
             )
         )
 
@@ -306,15 +308,14 @@ def run_probe_with_controls(
             train_x.shape, generator=generator, dtype=train_x.dtype
         )
         rand_eval_x = torch.randn(eval_x.shape, generator=generator, dtype=eval_x.dtype)
-        random_trainer = BinaryLinearProbeTrainer(
-            input_dim=input_dim, config=run_config
-        )
+        random_model = build_probe(base_config.probe_type, input_dim, **base_config.probe_kwargs)
+        random_trainer = BinaryProbeTrainer(model=random_model, config=run_config)
         random_trainer.fit(
-            _tensor_loader(rand_train_x, train_y, train_loader.batch_size)
+            _tensor_loader(rand_train_x, train_y, train_loader.batch_size, train_mask)
         )
         random_feature_runs.append(
             random_trainer.evaluate(
-                _tensor_loader(rand_eval_x, eval_y, eval_loader.batch_size)
+                _tensor_loader(rand_eval_x, eval_y, eval_loader.batch_size, eval_mask)
             )
         )
 
@@ -354,31 +355,43 @@ def _percentile_interval(
 
 
 def _loader_to_tensors(
-    data_loader: DataLoader[tuple[torch.Tensor, torch.Tensor]],
-) -> tuple[torch.Tensor, torch.Tensor]:
+    data_loader: DataLoader,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | None]:
     features: list[torch.Tensor] = []
     labels: list[torch.Tensor] = []
-    for batch_features, batch_labels in data_loader:
-        features.append(batch_features.detach().cpu().float())
-        labels.append(batch_labels.detach().cpu().long())
+    masks: list[torch.Tensor] = []
+    has_mask = False
+    for batch in data_loader:
+        if len(batch) == 3:
+            has_mask = True
+            features.append(batch[0].detach().cpu().float())
+            labels.append(batch[1].detach().cpu().long())
+            masks.append(batch[2].detach().cpu().float())
+        else:
+            features.append(batch[0].detach().cpu().float())
+            labels.append(batch[1].detach().cpu().long())
     if not features:
         return torch.empty((0, 0), dtype=torch.float32), torch.empty(
             (0,), dtype=torch.long
-        )
-    return torch.cat(features, dim=0), torch.cat(labels, dim=0)
+        ), None
+    cat_features = torch.cat(features, dim=0)
+    cat_labels = torch.cat(labels, dim=0)
+    cat_mask = torch.cat(masks, dim=0) if has_mask else None
+    return cat_features, cat_labels, cat_mask
 
 
 def _tensor_loader(
-    features: torch.Tensor, labels: torch.Tensor, batch_size: int | None
-) -> DataLoader[tuple[torch.Tensor, torch.Tensor]]:
+    features: torch.Tensor, labels: torch.Tensor, batch_size: int | None,
+    mask: torch.Tensor | None = None,
+) -> DataLoader:
     resolved_batch_size = (
         int(batch_size) if isinstance(batch_size, int) and batch_size > 0 else 32
     )
-    dataset = torch.utils.data.TensorDataset(features, labels)
-    return cast(
-        DataLoader[tuple[torch.Tensor, torch.Tensor]],
-        DataLoader(dataset, batch_size=resolved_batch_size, shuffle=True),
-    )
+    if mask is not None:
+        dataset = torch.utils.data.TensorDataset(features, labels, mask)
+    else:
+        dataset = torch.utils.data.TensorDataset(features, labels)
+    return DataLoader(dataset, batch_size=resolved_batch_size, shuffle=True)
 
 
 def _aggregate_metrics(

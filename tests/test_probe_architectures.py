@@ -107,3 +107,29 @@ class MaxRollingMeanProbeTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EndToEndProbeTest(unittest.TestCase):
+    def test_all_probe_types_train_and_evaluate(self) -> None:
+        """Smoke test: every registered probe type can train and evaluate."""
+        from probes.linear import BinaryProbeTrainer
+        from core.configs import ProbeParams
+
+        torch.manual_seed(42)
+        for probe_type in ["linear", "mean", "max", "softmax", "attention", "max_rolling_mean"]:
+            with self.subTest(probe_type=probe_type):
+                features = torch.randn(32, 15, 8)
+                labels = (features[:, -1, 0] > 0).long()
+                mask = torch.ones(32, 15)
+                dataset = TensorDataset(features, labels, mask)
+                loader = DataLoader(dataset, batch_size=8, shuffle=True)
+
+                model = build_probe(probe_type, input_dim=8)
+                trainer = BinaryProbeTrainer(
+                    model=model,
+                    config=ProbeParams(epochs=3, learning_rate=0.01, early_stopping_patience=None)
+                )
+                trainer.fit(loader, val_loader=loader)
+                metrics = trainer.evaluate(loader)
+                self.assertIn("auroc", metrics)
+                self.assertGreater(metrics["auroc"], 0.0)

@@ -12,8 +12,10 @@ from torch.utils.data import DataLoader, Subset
 from activation.types import ExtractionResult
 from core.configs import ProbeParams, SweepParams
 from dataset import ProbingDataset
+from dataset.collate import sequence_collate_fn
 from dataset.splitting import _validate_split_indices
-from probes.linear import BinaryLinearProbeTrainer, run_probe_with_controls
+from probes.architectures import build_probe
+from probes.linear import BinaryProbeTrainer, run_probe_with_controls
 from probes.run_manifest import compute_dataset_fingerprint, write_run_manifest
 from probes.types import LayerProbeSweepResult, TrainedLayerProbe
 
@@ -82,15 +84,18 @@ class LayerProbeSweepRunner:
                     dataset, train_indices, self.probe.pca_components
                 )
             train_loader, val_loader, test_loader = self._build_loaders(
-                dataset, train_indices, val_indices, test_indices
+                dataset, train_indices, val_indices, test_indices,
+                sequence_mode=dataset.sequence_mode,
             )
-            trainer = BinaryLinearProbeTrainer(
-                input_dim=dataset[0][0].numel(), config=self.probe
-            )
+            input_dim = dataset[0][0].shape[-1] if dataset.sequence_mode else dataset[0][0].numel()
+            model = build_probe(self.probe.probe_type, input_dim, **self.probe.probe_kwargs)
+            trainer = BinaryProbeTrainer(model=model, config=self.probe)
             history = trainer.fit(train_loader, val_loader=val_loader)
             val_metrics = trainer.evaluate(val_loader)
             direction = self._normalized_direction(trainer)
-            bias = float(trainer.model.linear.bias.detach().cpu().item())
+            bias: float | None = None
+            if hasattr(trainer.model, 'linear') and hasattr(trainer.model.linear, 'bias') and trainer.model.linear.bias is not None:
+                bias = float(trainer.model.linear.bias.detach().cpu().item())
             trained[key] = TrainedLayerProbe(
                 activation_key=key,
                 trainer=trainer,
@@ -113,11 +118,12 @@ class LayerProbeSweepRunner:
                 first_dataset, train_indices, self.probe.pca_components
             )
         train_loader, _, test_loader = self._build_loaders(
-            first_dataset, train_indices, val_indices, test_indices
+            first_dataset, train_indices, val_indices, test_indices,
+            sequence_mode=first_dataset.sequence_mode,
         )
         test_metrics = best_probe.trainer.evaluate(test_loader)
         controls_result = run_probe_with_controls(
-            input_dim=first_dataset[0][0].numel(),
+            input_dim=first_dataset[0][0].shape[-1] if first_dataset.sequence_mode else first_dataset[0][0].numel(),
             train_loader=train_loader,
             eval_loader=test_loader,
             config=self.probe,
@@ -227,6 +233,7 @@ class LayerProbeSweepRunner:
         train_idx: list[int],
         val_idx: list[int],
         test_idx: list[int],
+        sequence_mode: bool = False,
     ) -> tuple[
         DataLoader[tuple[torch.Tensor, torch.Tensor]],
         DataLoader[tuple[torch.Tensor, torch.Tensor]],
@@ -235,14 +242,18 @@ class LayerProbeSweepRunner:
         train_dataset = Subset(dataset, train_idx)
         val_dataset = Subset(dataset, val_idx)
         test_dataset = Subset(dataset, test_idx)
+        collate_fn = sequence_collate_fn if sequence_mode else None
         train_loader = DataLoader(
-            train_dataset, batch_size=self.sweep.batch_size, shuffle=True
+            train_dataset, batch_size=self.sweep.batch_size, shuffle=True,
+            collate_fn=collate_fn,
         )
         val_loader = DataLoader(
-            val_dataset, batch_size=self.sweep.batch_size, shuffle=False
+            val_dataset, batch_size=self.sweep.batch_size, shuffle=False,
+            collate_fn=collate_fn,
         )
         test_loader = DataLoader(
-            test_dataset, batch_size=self.sweep.batch_size, shuffle=False
+            test_dataset, batch_size=self.sweep.batch_size, shuffle=False,
+            collate_fn=collate_fn,
         )
         return train_loader, val_loader, test_loader
 
@@ -262,7 +273,9 @@ class LayerProbeSweepRunner:
         return dataset
 
     @staticmethod
-    def _normalized_direction(trainer: BinaryLinearProbeTrainer) -> torch.Tensor:
+    def _normalized_direction(trainer: BinaryProbeTrainer) -> torch.Tensor | None:
+        if not hasattr(trainer.model, 'linear'):
+            return None
         weight = trainer.model.linear.weight.detach().cpu().reshape(-1).float()
         norm = float(torch.linalg.vector_norm(weight).item())
         if norm == 0.0:

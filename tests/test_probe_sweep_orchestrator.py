@@ -215,3 +215,42 @@ class LayerProbeSweepRunnerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+    def test_sweep_runner_with_mean_probe(self) -> None:
+        torch.manual_seed(0)
+        n = 120
+        z = torch.randn(n)
+        labels = (z > 0).long().tolist()
+        features_l0 = [torch.randn(5, 3) for _ in range(n)]
+        features_l1 = [
+            torch.stack([z[i].expand(3) + 0.05 * torch.randn(3)] * 5)
+            for i in range(n)
+        ]
+        extraction = {
+            "requested": ["layers_output:0", "layers_output:1"],
+            "activations": {
+                "layers_output:0": features_l0,
+                "layers_output:1": features_l1,
+            },
+            "sample_ids": [f"id-{i}" for i in range(n)],
+            "labels": labels,
+        }
+        train_idx, val_idx, test_idx = self._split_from_labels(
+            labels=labels, sample_ids=extraction["sample_ids"]
+        )
+        result = LayerProbeSweepRunner(
+            probe=ProbeParams(
+                probe_type="mean", epochs=15, learning_rate=0.05,
+                seed=7, weight_decay=0.01, early_stopping_patience=None,
+            ),
+            sweep=SweepParams(
+                activation_targets=[0, 1], batch_size=16, selection_metric="auroc"
+            ),
+        ).run(
+            extraction,
+            train_indices=train_idx,
+            val_indices=val_idx,
+            test_indices=test_idx,
+        )
+        self.assertIsNotNone(result.test_metrics)
+        self.assertIn("auroc", result.test_metrics)
