@@ -13,7 +13,7 @@ class DiffMeansLayerResult:
     raw_norm: float  # ||r_l|| before normalization
     positive_count: int
     negative_count: int
-    val_metrics: dict[str, float | tuple[float, float]]
+    val_metrics: dict[str, float]
 
 
 @dataclass
@@ -23,7 +23,7 @@ class DiffMeansSweepResult:
     best_metric: str
     best_score: float
     best_direction: torch.Tensor
-    test_metrics: dict[str, float | tuple[float, float]]
+    test_metrics: dict[str, float]
     controls: dict[str, dict[str, float]]
     split_sizes: tuple[int, int, int]
     dataset_fingerprint: str

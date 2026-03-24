@@ -161,6 +161,8 @@ class ProbingSampleBuilder:
             return int(value)
         if isinstance(value, int) and value in (0, 1):
             return value
+        if isinstance(value, float) and value in (0.0, 1.0):
+            return int(value)
         if isinstance(value, str):
             normalized = value.strip().lower()
             if normalized in {"0", "false", "neg", "negative", "no"}:

@@ -132,4 +132,5 @@ class EndToEndProbeTest(unittest.TestCase):
                 trainer.fit(loader, val_loader=loader)
                 metrics = trainer.evaluate(loader)
                 self.assertIn("auroc", metrics)
-                self.assertGreater(metrics["auroc"], 0.0)
+                auroc = metrics["auroc"]
+                self.assertGreater(auroc if isinstance(auroc, (int, float)) else auroc[0], 0.0)

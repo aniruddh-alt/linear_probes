@@ -26,12 +26,12 @@ def _build_extractor_stub() -> ActivationExtractor:
             down_proj=SimpleNamespace(input="down_in", output="down_out"),
         )
     )
-    extractor.model = SimpleNamespace(
+    extractor.model = SimpleNamespace(  # type: ignore[assignment]
         num_layers=6,
         attn_probs_available=True,
         layers=[layer_module for _ in range(6)],
     )
-    extractor.model_name = "stub-model"
+    extractor.model_name = "stub-model"  # type: ignore[assignment]
     extractor.batch_size = 2
     extractor.default_activations = ["layers_output:0"]
     return extractor
@@ -100,6 +100,7 @@ class ActivationExtractorTests(unittest.TestCase):
             }
 
             loaded = load_activation_value(extraction, activation_key="layers_output:0")
+            assert isinstance(loaded, torch.Tensor)
             self.assertTrue(torch.equal(loaded, torch.tensor([[1.0], [2.0], [3.0]])))
 
     def test_storage_helper_resolves_implicit_key_rules(self) -> None:

@@ -46,6 +46,7 @@ class ProbeAnalyzer:
         fig.tight_layout()
         if self.save_plots:
             plt.savefig(self._resolve_output_path("probe_auroc_ranking.png", output_path))
+        plt.close(fig)
 
         ranked = sorted(
             self.probes, key=lambda x: self._metric_value(x, "auroc"), reverse=True
@@ -56,15 +57,17 @@ class ProbeAnalyzer:
         self, *, output_path: str | Path | None = None
     ) -> torch.Tensor:
         """Plot pairwise cosine-similarity heatmap across probe directions."""
-        keys = [probe.activation_key for probe in self.probes]
-        directions = [
-            probe.direction.detach().cpu().reshape(-1).float() for probe in self.probes
-        ]
+        probes_with_dirs = [p for p in self.probes if p.direction is not None]
+        if not probes_with_dirs:
+            raise ValueError("No probes have directions for cosine similarity.")
+        keys = [probe.activation_key for probe in probes_with_dirs]
+        directions: list[torch.Tensor] = []
+        for probe in probes_with_dirs:
+            assert probe.direction is not None
+            directions.append(probe.direction.detach().cpu().reshape(-1).float())
         dims = {int(direction.numel()) for direction in directions}
         if len(dims) != 1:
-            raise ValueError(
-                "All probe directions must have the same dimensionality for pairwise cosine similarity."
-            )
+            raise ValueError("All probe directions must have the same dimensionality.")
 
         direction_matrix = torch.stack(directions, dim=0)
         direction_matrix = torch.nn.functional.normalize(direction_matrix, dim=1)
@@ -86,6 +89,7 @@ class ProbeAnalyzer:
             plt.savefig(
                 self._resolve_output_path("probe_cosine_similarity.png", output_path)
             )
+        plt.close(fig)
         return cosine_matrix
 
     def _resolve_output_path(self, default_name: str, output_path: str | Path | None) -> Path:

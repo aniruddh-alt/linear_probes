@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any, cast
 
 from datasets import load_dataset
 from transformers import AutoTokenizer
@@ -26,7 +27,7 @@ FORCED_PREFIX = "Sure, here is"
 
 def _load_harmful(limit: int) -> list[str]:
     ds = load_dataset("walledai/AdvBench", split="train")
-    out = [row["goal"] for row in ds if row.get("goal", "").strip()][:limit]
+    out = [cast(dict[str, Any], row)["goal"] for row in ds if cast(dict[str, Any], row).get("goal", "").strip()][:limit]
     if len(out) < limit:
         raise ValueError(f"AdvBench yielded only {len(out)}/{limit} rows.")
     return out
@@ -34,7 +35,7 @@ def _load_harmful(limit: int) -> list[str]:
 
 def _load_harmless(limit: int) -> list[str]:
     ds = load_dataset("tatsu-lab/alpaca", split="train")
-    out = [row["instruction"] for row in ds if row.get("instruction", "").strip()][:limit]
+    out = [cast(dict[str, Any], row)["instruction"] for row in ds if cast(dict[str, Any], row).get("instruction", "").strip()][:limit]
     if len(out) < limit:
         raise ValueError(f"Alpaca yielded only {len(out)}/{limit} rows.")
     return out

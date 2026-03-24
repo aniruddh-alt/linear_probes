@@ -65,7 +65,9 @@ class LayerProbeSweepRunnerTests(unittest.TestCase):
         self.assertEqual(set(probes.keys()), {"layers_output:0", "layers_output:1"})
         self.assertEqual(result.best_key, "layers_output:1")
         self.assertGreater(float(result.best_score), 0.9)
-        self.assertEqual(int(probes[result.best_key].direction.ndim), 1)
+        best_direction = probes[result.best_key].direction
+        assert best_direction is not None
+        self.assertEqual(int(best_direction.ndim), 1)
         self.assertIn("auroc", result.test_metrics)
         self.assertIn("real", result.controls)
         self.assertIn("shuffled_labels", result.controls)
@@ -108,8 +110,9 @@ class LayerProbeSweepRunnerTests(unittest.TestCase):
                 manifest_path=manifest,
             )
         self.assertIn("layers_output:0", result.probes)
+        acc = result.probes["layers_output:0"].val_metrics["accuracy"]
         self.assertGreaterEqual(
-            float(result.probes["layers_output:0"].val_metrics["accuracy"]), 0.6
+            float(acc) if isinstance(acc, (int, float)) else acc[0], 0.6
         )
         self.assertTrue(isinstance(result.dataset_fingerprint, str))
         self.assertEqual(result.manifest_path, str(manifest))
@@ -213,9 +216,6 @@ class LayerProbeSweepRunnerTests(unittest.TestCase):
             )
 
 
-if __name__ == "__main__":
-    unittest.main()
-
     def test_sweep_runner_with_mean_probe(self) -> None:
         torch.manual_seed(0)
         n = 120
@@ -254,3 +254,7 @@ if __name__ == "__main__":
         )
         self.assertIsNotNone(result.test_metrics)
         self.assertIn("auroc", result.test_metrics)
+
+
+if __name__ == "__main__":
+    unittest.main()

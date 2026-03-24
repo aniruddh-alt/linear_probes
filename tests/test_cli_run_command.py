@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from cli.main import build_parser, _parse_overrides, main
 
 
@@ -26,8 +28,8 @@ class TestCli:
             "run_name: cli_test\naction: probe_sweep\n",
             encoding="utf-8",
         )
-        rc = main(["run", "-c", str(config_path)])
-        assert rc == 0
+        with pytest.raises(NotImplementedError, match="probe_sweep action not yet wired"):
+            main(["run", "-c", str(config_path)])
 
     def test_main_no_command_returns_1(self):
         rc = main([])

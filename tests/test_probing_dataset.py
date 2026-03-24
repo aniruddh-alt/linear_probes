@@ -3,6 +3,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from typing import cast
 
 from safetensors.torch import save_file
 import torch
@@ -201,7 +202,7 @@ class SequenceModeProbingDatasetTests(unittest.TestCase):
     def test_sequence_collate_pads_to_max_len(self) -> None:
         features = [torch.randn(3, 4), torch.randn(5, 4)]
         ds = ProbingDataset(features=features, labels=[0, 1])
-        batch = [ds[0], ds[1]]
+        batch = cast(list[tuple[torch.Tensor, torch.Tensor, torch.Tensor]], [ds[0], ds[1]])
         padded_features, labels, mask = sequence_collate_fn(batch)
         self.assertEqual(padded_features.shape, (2, 5, 4))
         self.assertEqual(mask.shape, (2, 5))

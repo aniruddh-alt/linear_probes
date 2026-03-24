@@ -28,7 +28,7 @@ class TestSampleBundleResponses:
         """SampleBundle without responses still works for splitting etc."""
         bundle = SampleBundle(
             prompts=StringDataset(["a"] * 20 + ["b"] * 20),
-            labels=[0] * 20 + [1] * 20,
+            labels=[0] * 20 + [1] * 20,  # type: ignore[arg-type]
             ids=[f"a-{i}" for i in range(20)] + [f"b-{i}" for i in range(20)],
         )
         train, val, test = bundle.train_val_test_split(seed=42)

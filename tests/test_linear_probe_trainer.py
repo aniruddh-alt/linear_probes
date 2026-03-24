@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from typing import cast
 
 import torch
 from torch.utils.data import DataLoader, TensorDataset
@@ -8,6 +9,10 @@ from torch.utils.data import DataLoader, TensorDataset
 from core.configs import ProbeParams
 from probes.linear import BinaryLinearProbeTrainer, BinaryProbeTrainer, run_probe_with_controls
 from probes.architectures import build_probe
+
+
+def _scalar(v: float | tuple[float, float]) -> float:
+    return v if isinstance(v, (int, float)) else v[0]
 
 
 class LinearProbeTrainerTests(unittest.TestCase):
@@ -25,7 +30,7 @@ class LinearProbeTrainerTests(unittest.TestCase):
         metrics = trainer.evaluate(loader)
 
         self.assertEqual(len(history["train_loss"]), 25)
-        self.assertGreater(metrics["accuracy"], 0.9)
+        self.assertGreater(_scalar(metrics["accuracy"]), 0.9)
         self.assertIn("f1", metrics)
         self.assertIn("auroc", metrics)
 
@@ -83,7 +88,7 @@ class GenericProbeTrainerTests(unittest.TestCase):
         ))
         trainer.fit(loader, val_loader=loader)
         metrics = trainer.evaluate(loader)
-        self.assertGreater(metrics["accuracy"], 0.8)
+        self.assertGreater(_scalar(metrics["accuracy"]), 0.8)
 
 
 if __name__ == "__main__":

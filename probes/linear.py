@@ -20,17 +20,7 @@ from torchmetrics.classification import (  # type: ignore[import-untyped]
 )
 
 from core.configs import ProbeParams
-
-
-class LinearProbe(nn.Module):
-    """Base linear probe."""
-
-    def __init__(self, input_dim: int, output_dim: int):
-        super().__init__()
-        self.linear = nn.Linear(input_dim, output_dim)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.linear(x)
+from probes.architectures import LinearProbe
 
 
 class BinaryProbeTrainer:
@@ -52,13 +42,13 @@ class BinaryProbeTrainer:
             self.device
         )
         self.precision_metric = BinaryPrecision(
-            threshold=self.config.threshold, zero_division=0
+            threshold=self.config.threshold,
         ).to(self.device)
         self.recall_metric = BinaryRecall(
-            threshold=self.config.threshold, zero_division=0
+            threshold=self.config.threshold,
         ).to(self.device)
         self.f1_metric = BinaryF1Score(
-            threshold=self.config.threshold, zero_division=0
+            threshold=self.config.threshold,
         ).to(self.device)
 
     def _unpack_batch(
@@ -66,9 +56,9 @@ class BinaryProbeTrainer:
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | None]:
         if len(batch) == 3:
             features, labels, mask = batch
-            return features.to(self.device), labels, mask.to(self.device)
+            return features.to(self.device), labels.to(self.device), mask.to(self.device)
         features, labels = batch[0], batch[1]
-        return features.to(self.device), labels, None
+        return features.to(self.device), labels.to(self.device), None
 
     def _forward(self, x: torch.Tensor, mask: torch.Tensor | None) -> torch.Tensor:
         if mask is not None:
@@ -77,8 +67,8 @@ class BinaryProbeTrainer:
 
     def fit(
         self,
-        train_loader: DataLoader[tuple[torch.Tensor, torch.Tensor]],
-        val_loader: DataLoader[tuple[torch.Tensor, torch.Tensor]] | None = None,
+        train_loader: DataLoader[tuple[torch.Tensor, ...]],
+        val_loader: DataLoader[tuple[torch.Tensor, ...]] | None = None,
     ) -> dict[str, list[float | tuple[float, float]]]:
         history: dict[str, list[float | tuple[float, float]]] = {"train_loss": []}
         if val_loader is not None:
@@ -94,7 +84,7 @@ class BinaryProbeTrainer:
             total = 0
             for batch in train_loader:
                 x, labels_batch, mask = self._unpack_batch(batch)
-                y = labels_batch.to(self.device).float().unsqueeze(1)
+                y = labels_batch.float().unsqueeze(1)
                 logits = self._forward(x, mask)
                 loss = self.criterion(logits, y)
                 if self.config.l1_weight > 0:
@@ -116,7 +106,8 @@ class BinaryProbeTrainer:
 
             if val_loader is not None:
                 metrics = self.evaluate(val_loader)
-                val_loss = float(metrics["loss"])
+                loss_value = metrics["loss"]
+                val_loss = float(loss_value) if isinstance(loss_value, (int, float)) else loss_value[0]
                 history["val_loss"].append(val_loss)
                 history["val_accuracy"].append(metrics["accuracy"])
                 if self.config.early_stopping_patience is not None:
@@ -155,7 +146,7 @@ class BinaryProbeTrainer:
 
     @torch.no_grad()
     def evaluate(
-        self, data_loader: DataLoader[tuple[torch.Tensor, torch.Tensor]]
+        self, data_loader: DataLoader[tuple[torch.Tensor, ...]]
     ) -> dict[str, float | tuple[float, float]]:
         self.model.eval()
         running_loss = 0.0
@@ -171,12 +162,12 @@ class BinaryProbeTrainer:
 
         for batch in data_loader:
             x, labels_batch, mask = self._unpack_batch(batch)
-            y = labels_batch.to(self.device).float().unsqueeze(1)
+            y = labels_batch.float().unsqueeze(1)
             logits = self._forward(x, mask)
             loss = self.criterion(logits, y)
 
             probs = torch.sigmoid(logits).squeeze(-1)
-            batch_labels = labels_batch.to(self.device).long()
+            batch_labels = labels_batch.long()
             self.accuracy_metric.update(probs, batch_labels)
             self.precision_metric.update(probs, batch_labels)
             self.recall_metric.update(probs, batch_labels)
@@ -253,24 +244,19 @@ class BinaryLinearProbeTrainer(BinaryProbeTrainer):
     """Backward-compatible wrapper that creates a LinearProbe internally."""
 
     def __init__(self, input_dim: int, config: ProbeParams | None = None):
-        model = LinearProbe(input_dim=input_dim, output_dim=1)
+        model = LinearProbe(input_dim=input_dim)
         super().__init__(model=model, config=config)
 
 
 def run_probe_with_controls(
     *,
     input_dim: int,
-    train_loader: DataLoader[tuple[torch.Tensor, torch.Tensor]],
-    eval_loader: DataLoader[tuple[torch.Tensor, torch.Tensor]],
+    train_loader: DataLoader[tuple[torch.Tensor, ...]],
+    eval_loader: DataLoader[tuple[torch.Tensor, ...]],
     config: ProbeParams | None = None,
     seeds: Sequence[int] = (0,),
 ) -> dict[str, Any]:
-    """Train/evaluate probe with multi-seed and baseline controls.
-
-    Controls:
-    - shuffled_labels: train on a random permutation of training labels.
-    - random_features: train/eval on Gaussian random features.
-    """
+    """Train/evaluate probe with multi-seed and baseline controls."""
     from probes.architectures import build_probe
 
     base_config = config or ProbeParams()
@@ -283,7 +269,7 @@ def run_probe_with_controls(
 
     for seed in seeds:
         run_config = replace(base_config, seed=int(seed))
-        model = build_probe(base_config.probe_type, input_dim, **base_config.probe_kwargs)
+        model = build_probe(run_config.probe_type, input_dim, **run_config.probe_kwargs)
         trainer = BinaryProbeTrainer(model=model, config=run_config)
         trainer.fit(_tensor_loader(train_x, train_y, train_loader.batch_size, train_mask))
         real_runs.append(
@@ -293,7 +279,7 @@ def run_probe_with_controls(
         generator = torch.Generator().manual_seed(int(seed) + 1_000)
         permutation = torch.randperm(len(train_y), generator=generator)
         shuffled_y = train_y[permutation]
-        shuffled_model = build_probe(base_config.probe_type, input_dim, **base_config.probe_kwargs)
+        shuffled_model = build_probe(run_config.probe_type, input_dim, **run_config.probe_kwargs)
         shuffled_trainer = BinaryProbeTrainer(model=shuffled_model, config=run_config)
         shuffled_trainer.fit(
             _tensor_loader(train_x, shuffled_y, train_loader.batch_size, train_mask)
@@ -308,7 +294,7 @@ def run_probe_with_controls(
             train_x.shape, generator=generator, dtype=train_x.dtype
         )
         rand_eval_x = torch.randn(eval_x.shape, generator=generator, dtype=eval_x.dtype)
-        random_model = build_probe(base_config.probe_type, input_dim, **base_config.probe_kwargs)
+        random_model = build_probe(run_config.probe_type, input_dim, **run_config.probe_kwargs)
         random_trainer = BinaryProbeTrainer(model=random_model, config=run_config)
         random_trainer.fit(
             _tensor_loader(rand_train_x, train_y, train_loader.batch_size, train_mask)
@@ -349,8 +335,8 @@ def _percentile_interval(
     if not values:
         return (0.0, 0.0)
     sorted_vals = sorted(values)
-    low_idx = int(low_q * (len(sorted_vals) - 1))
-    high_idx = int(high_q * (len(sorted_vals) - 1))
+    low_idx = round(low_q * (len(sorted_vals) - 1))
+    high_idx = round(high_q * (len(sorted_vals) - 1))
     return (float(sorted_vals[low_idx]), float(sorted_vals[high_idx]))
 
 
@@ -383,6 +369,7 @@ def _loader_to_tensors(
 def _tensor_loader(
     features: torch.Tensor, labels: torch.Tensor, batch_size: int | None,
     mask: torch.Tensor | None = None,
+    shuffle: bool = True,
 ) -> DataLoader:
     resolved_batch_size = (
         int(batch_size) if isinstance(batch_size, int) and batch_size > 0 else 32
@@ -391,7 +378,7 @@ def _tensor_loader(
         dataset = torch.utils.data.TensorDataset(features, labels, mask)
     else:
         dataset = torch.utils.data.TensorDataset(features, labels)
-    return DataLoader(dataset, batch_size=resolved_batch_size, shuffle=True)
+    return DataLoader(dataset, batch_size=resolved_batch_size, shuffle=shuffle)
 
 
 def _aggregate_metrics(

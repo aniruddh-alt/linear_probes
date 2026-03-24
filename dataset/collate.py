@@ -9,6 +9,8 @@ def sequence_collate_fn(
     batch: list[tuple[torch.Tensor, torch.Tensor, torch.Tensor]],
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Pad variable-length (S, D) tensors to (S_max, D) with attention mask."""
+    if not batch:
+        raise ValueError("Cannot collate an empty batch.")
     features, labels, masks = zip(*batch)
     max_len = max(f.shape[0] for f in features)
     dim = features[0].shape[-1]

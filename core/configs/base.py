@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Self
 
 from omegaconf import DictConfig, OmegaConf
 
@@ -13,7 +14,7 @@ class BaseConfig:
     """Base config providing YAML round-trip and merge support via OmegaConf."""
 
     @classmethod
-    def from_yaml(cls, path: str | Path) -> "BaseConfig":
+    def from_yaml(cls, path: str | Path) -> Self:
         """Load a config from a YAML file into a typed dataclass instance."""
         schema = OmegaConf.structured(cls)
         raw = OmegaConf.load(str(path))
@@ -21,7 +22,7 @@ class BaseConfig:
         return OmegaConf.to_object(merged)  # type: ignore[return-value]
 
     @classmethod
-    def from_dict(cls, data: dict) -> "BaseConfig":
+    def from_dict(cls, data: dict) -> Self:
         """Load a config from a plain dict into a typed dataclass instance."""
         schema = OmegaConf.structured(cls)
         raw = OmegaConf.create(data)

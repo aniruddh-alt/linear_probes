@@ -72,23 +72,19 @@ class DiffMeansSweepRunner:
             elif current_labels != dataset_labels:
                 raise ValueError("Labels must be identical across activation keys.")
 
-            # Fit on train split only
             train_features = dataset.features[train_indices]
             train_labels_t = dataset.labels[train_indices]
             layer_result = estimator.fit(train_features, train_labels_t, key=key)
 
-            # Evaluate on val split
             val_features = dataset.features[val_indices]
             val_labels_t = dataset.labels[val_indices]
             val_metrics = evaluate_projection(val_features, val_labels_t, layer_result.direction)
             layer_result.val_metrics = val_metrics
             layer_results[key] = layer_result
 
-        # Select best layer
         best_key, best_score = self._select_best_layer(layer_results)
         best_layer = layer_results[best_key]
 
-        # Evaluate best on test split
         best_dataset = ProbingDataset.from_extraction_result(
             extraction, activation_key=best_key,
             labels=labels, positive_indices=positive_indices,
@@ -97,17 +93,16 @@ class DiffMeansSweepRunner:
         test_labels_t = best_dataset.labels[test_indices]
         test_metrics = evaluate_projection(test_features, test_labels_t, best_layer.direction)
 
-        # Controls: shuffled labels
         train_features = best_dataset.features[train_indices]
         train_labels_tensor = best_dataset.labels[train_indices]
         controls_summary = self._run_controls(
             estimator, train_features, train_labels_tensor,
             test_features, test_labels_t, best_layer.direction,
+            real_metrics=test_metrics,
         )
         if self.sweep.enforce_control_sanity:
             self._enforce_control_sanity(controls_summary)
 
-        # Fingerprint
         if dataset_labels is None:
             raise ValueError("Unable to resolve dataset labels.")
         dataset_fingerprint = compute_dataset_fingerprint(
@@ -116,7 +111,6 @@ class DiffMeansSweepRunner:
             group_ids=group_ids,
         )
 
-        # Manifest
         resolved_manifest_path: str | None = None
         if manifest_path is not None:
             manifest_path_obj = Path(manifest_path)
@@ -163,8 +157,10 @@ class DiffMeansSweepRunner:
         test_features: torch.Tensor,
         test_labels: torch.Tensor,
         real_direction: torch.Tensor,
+        real_metrics: dict[str, float] | None = None,
     ) -> dict[str, dict[str, float]]:
-        real_metrics = evaluate_projection(test_features, test_labels, real_direction)
+        if real_metrics is None:
+            real_metrics = evaluate_projection(test_features, test_labels, real_direction)
 
         shuffled_runs: list[dict[str, float]] = []
         for seed in self.sweep.control_seeds:
@@ -199,10 +195,14 @@ class DiffMeansSweepRunner:
         )
 
     @staticmethod
-    def _metric_value(metrics: dict[str, float | tuple[float, float]], name: str) -> float:
-        value = metrics.get(name) or metrics.get(name.lower()) or metrics.get(name.upper())
-        if value is None or isinstance(value, tuple):
-            raise KeyError(f"Metric '{name}' missing or non-scalar.")
+    def _metric_value(metrics: dict[str, float], name: str) -> float:
+        value = metrics.get(name)
+        if value is None:
+            value = metrics.get(name.lower())
+        if value is None:
+            value = metrics.get(name.upper())
+        if value is None:
+            raise KeyError(f"Metric '{name}' missing.")
         return float(value)
 
     def _resolve_activation_keys(

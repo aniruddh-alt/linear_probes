@@ -24,29 +24,18 @@ def _load_vector(
     normalize: bool = True,
     device: str = "cpu",
 ) -> torch.Tensor:
-    """Load a steering vector from .pt or .safetensors file.
-
-    Args:
-        path: Path to the vector file.
-        key: Key to use for .safetensors files. Ignored for .pt files.
-        normalize: Whether to L2-normalize the vector.
-        device: Device to place the vector on.
-
-    Returns:
-        1-D tensor of shape (hidden_dim,).
-    """
+    """Load a steering vector from .pt or .safetensors file."""
     if path.endswith(".safetensors"):
         tensors = load_file(path, device=device)
         if key:
             vec = tensors[key]
         else:
-            # Take the first (and presumably only) tensor
             vec = next(iter(tensors.values()))
     else:
         vec = torch.load(path, map_location=device, weights_only=True)
 
     vec = vec.float().squeeze()
-    if normalize:
+    if normalize and vec.norm() > 0:
         vec = vec / vec.norm()
     return vec
 
@@ -56,16 +45,7 @@ def _make_steering_hook(
     mode: str,
     strength: float,
 ) -> Callable:
-    """Create a forward hook that steers activations.
-
-    Args:
-        vector: Unit steering vector of shape (hidden_dim,).
-        mode: "project_subtract" or "additive".
-        strength: Scaling factor (used only for additive mode).
-
-    Returns:
-        A forward hook function compatible with PyTorch register_forward_hook.
-    """
+    """Create a forward hook that steers activations."""
 
     def hook(module, input, output):  # noqa: A002
         if isinstance(output, torch.Tensor):
@@ -92,14 +72,7 @@ def _make_steering_hook(
 
 
 def _resolve_layer_modules(model) -> list:
-    """Find the transformer layer modules.
-
-    Supports Llama-style (model.model.layers) and GPT-style
-    (model.transformer.h) architectures.
-
-    Returns:
-        List of layer modules.
-    """
+    """Find the transformer layer modules (Llama-style or GPT-style)."""
     # Llama / Mistral / Qwen style
     if hasattr(model, "model") and hasattr(model.model, "layers"):
         return list(model.model.layers)
@@ -130,6 +103,7 @@ class ResponseGenerator:
         )
         if self.tokenizer.pad_token_id is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
+        self.tokenizer.padding_side = "left"
         model_kwargs = {}
         if model.dtype is not None:
             model_kwargs["torch_dtype"] = getattr(torch, model.dtype)
@@ -144,7 +118,6 @@ class ResponseGenerator:
             **model_kwargs,
         )
 
-        # Load steering vector if enabled
         self._steering_vector: torch.Tensor | None = None
         if steering and steering.enabled:
             self._steering_vector = _load_vector(
@@ -164,27 +137,19 @@ class ResponseGenerator:
         self,
         samples: SampleBundle | Sequence[str],
     ) -> GenerationResult:
-        """Generate responses for each prompt.
-
-        Args:
-            samples: Prompts as a SampleBundle or list of strings.
-
-        Returns:
-            GenerationResult with prompts, responses, sample_ids, labels.
-        """
+        """Generate responses for each prompt."""
         if isinstance(samples, SampleBundle):
-            prompts = [samples.prompts[i] for i in range(len(samples.prompts))]
+            prompts = [samples.prompts[i] for i in range(len(samples.ids))]
             sample_ids = list(samples.ids)
             labels = list(samples.labels)
         else:
             prompts = list(samples)
             sample_ids = [str(i) for i in range(len(prompts))]
-            labels = [None] * len(prompts)
+            labels: list[int | None] = [None] * len(prompts)
 
         gen_params = self.generation_params
         responses: list[str] = []
 
-        # Register steering hooks if enabled
         handles = []
         if self._steering_vector is not None and self.steering_params:
             try:

@@ -54,7 +54,7 @@ class TestGenerationResult:
     def test_to_sample_bundle_prompt_only(self):
         result = self._make_result(n=3, labeled=True)
         bundle = result.to_sample_bundle(include_response=False)
-        assert len(bundle.prompts) == 3
+        assert len(bundle.prompts) == 3  # type: ignore[arg-type]
         assert bundle.prompts[0] == "prompt 0"
         assert bundle.labels == [0, 1, 0]
         assert bundle.ids == ["s0", "s1", "s2"]

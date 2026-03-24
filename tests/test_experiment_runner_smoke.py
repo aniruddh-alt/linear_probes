@@ -54,15 +54,14 @@ class TestExperimentRunner:
         assert isinstance(cfg, ProbeConfig)
         assert cfg.probe.learning_rate == 0.001
 
-    def test_run_experiment_returns_structured_result(self, tmp_path):
+    def test_run_experiment_probe_sweep_raises_not_implemented(self, tmp_path):
         config_path = tmp_path / "run.yaml"
         config_path.write_text(
             "run_name: smoke\naction: probe_sweep\n",
             encoding="utf-8",
         )
-        result = run_experiment(config_path=config_path, overrides={})
-        assert isinstance(result, RunResult)
-        assert result.summary["run_name"] == "smoke"
+        with pytest.raises(NotImplementedError, match="probe_sweep action not yet wired"):
+            run_experiment(config_path=config_path, overrides={})
 
     def test_run_experiment_unknown_action_raises(self, tmp_path):
         config_path = tmp_path / "run.yaml"
@@ -81,8 +80,8 @@ class TestExperimentRunner:
             "run_name: aliased\naction: probe_sweep\n",
             encoding="utf-8",
         )
-        result = run_experiment(config_path="quick", aliases_path=aliases_file)
-        assert result.summary["run_name"] == "aliased"
+        with pytest.raises(NotImplementedError, match="probe_sweep action not yet wired"):
+            run_experiment(config_path="quick", aliases_path=aliases_file)
 
     def test_generate_action_requires_input_path(self, tmp_path):
         config_path = tmp_path / "run.yaml"

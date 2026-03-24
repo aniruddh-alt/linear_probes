@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import torch
-from sklearn.decomposition import PCA
+from sklearn.decomposition import PCA  # type: ignore[import-untyped, import-not-found]
 from torch.utils.data import DataLoader, Subset
 
 from activation.types import ExtractionResult
@@ -45,6 +45,10 @@ class LayerProbeSweepRunner:
         manifest_overwrite: bool = False,
         manifest_unique_path: bool = False,
     ) -> LayerProbeSweepResult:
+        if manifest_overwrite and manifest_unique_path:
+            raise ValueError(
+                "manifest_overwrite and manifest_unique_path are mutually exclusive."
+            )
         activation_keys = self._resolve_activation_keys(extraction)
         if not activation_keys:
             raise ValueError("No activation keys resolved for probe sweep.")
@@ -94,8 +98,9 @@ class LayerProbeSweepRunner:
             val_metrics = trainer.evaluate(val_loader)
             direction = self._normalized_direction(trainer)
             bias: float | None = None
-            if hasattr(trainer.model, 'linear') and hasattr(trainer.model.linear, 'bias') and trainer.model.linear.bias is not None:
-                bias = float(trainer.model.linear.bias.detach().cpu().item())
+            linear = getattr(trainer.model, 'linear', None)
+            if linear is not None and hasattr(linear, 'bias') and linear.bias is not None:
+                bias = float(linear.bias.detach().cpu().item())
             trained[key] = TrainedLayerProbe(
                 activation_key=key,
                 trainer=trainer,
@@ -147,10 +152,6 @@ class LayerProbeSweepRunner:
         resolved_manifest_path: str | None = None
         if manifest_path is not None:
             manifest_path_obj = Path(manifest_path)
-            if manifest_overwrite and manifest_unique_path:
-                raise ValueError(
-                    "manifest_overwrite and manifest_unique_path are mutually exclusive."
-                )
             if manifest_overwrite and manifest_path_obj.exists():
                 manifest_path_obj.unlink()
             if manifest_unique_path:
@@ -235,9 +236,9 @@ class LayerProbeSweepRunner:
         test_idx: list[int],
         sequence_mode: bool = False,
     ) -> tuple[
-        DataLoader[tuple[torch.Tensor, torch.Tensor]],
-        DataLoader[tuple[torch.Tensor, torch.Tensor]],
-        DataLoader[tuple[torch.Tensor, torch.Tensor]],
+        DataLoader[tuple[torch.Tensor, ...]],
+        DataLoader[tuple[torch.Tensor, ...]],
+        DataLoader[tuple[torch.Tensor, ...]],
     ]:
         train_dataset = Subset(dataset, train_idx)
         val_dataset = Subset(dataset, val_idx)
@@ -264,6 +265,8 @@ class LayerProbeSweepRunner:
         n_components: int,
     ) -> ProbingDataset:
         """Fit PCA on train split, transform all features in-place."""
+        if dataset.sequence_mode:
+            raise ValueError("PCA is not supported with sequence mode datasets.")
         all_features = dataset.features.float().numpy()
         train_features = all_features[train_indices]
         pca = PCA(n_components=min(n_components, *train_features.shape))
@@ -274,9 +277,10 @@ class LayerProbeSweepRunner:
 
     @staticmethod
     def _normalized_direction(trainer: BinaryProbeTrainer) -> torch.Tensor | None:
-        if not hasattr(trainer.model, 'linear'):
+        linear = getattr(trainer.model, 'linear', None)
+        if linear is None:
             return None
-        weight = trainer.model.linear.weight.detach().cpu().reshape(-1).float()
+        weight = linear.weight.detach().cpu().reshape(-1).float()
         norm = float(torch.linalg.vector_norm(weight).item())
         if norm == 0.0:
             return weight

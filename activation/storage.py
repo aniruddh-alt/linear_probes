@@ -14,7 +14,7 @@ def load_extraction_manifest(
     extraction_path: str | Path, *, map_location: str | torch.device = "cpu"
 ) -> dict[str, Any]:
     """Load an extraction manifest from disk."""
-    loaded = torch.load(Path(extraction_path), map_location=map_location)
+    loaded = torch.load(Path(extraction_path), map_location=map_location, weights_only=False)
     if not isinstance(loaded, dict):
         raise TypeError(
             f"Extraction manifest must be a dict, got {type(loaded).__name__}."

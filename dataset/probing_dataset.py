@@ -19,24 +19,26 @@ class ProbingDataset(Dataset[Union[tuple[torch.Tensor, torch.Tensor], tuple[torc
     """Dataset for binary probes supporting pooled (N, D) and sequence (variable S, D) modes."""
 
     def __init__(
-        self, features: Sequence[torch.Tensor] | torch.Tensor, labels: Sequence[int]
+        self,
+        features: Sequence[torch.Tensor] | torch.Tensor,
+        labels: Sequence[int],
+        sequence_mode: bool | None = None,
     ):
         label_values = [int(label) for label in labels]
         if any(label not in (0, 1) for label in label_values):
             raise ValueError("Binary probe labels must be 0 or 1.")
         self.labels = torch.tensor(label_values, dtype=torch.long)
 
-        # Detect sequence mode: list of 2D tensors with varying first dimension
         self.sequence_mode = False
         self._sequence_features: list[torch.Tensor] | None = None
 
         if isinstance(features, list) and features and isinstance(features[0], torch.Tensor):
             if features[0].ndim == 2:
-                # Check if all have same hidden dim but possibly different seq lengths
                 hidden_dim = features[0].shape[1]
                 is_variable_length = any(f.shape[0] != features[0].shape[0] for f in features)
                 all_2d_same_hidden = all(f.ndim == 2 and f.shape[1] == hidden_dim for f in features)
-                if is_variable_length and all_2d_same_hidden:
+                force_sequence = sequence_mode is True
+                if (is_variable_length or force_sequence) and all_2d_same_hidden:
                     self.sequence_mode = True
                     self._sequence_features = [f.detach().float() for f in features]
                     if len(self._sequence_features) != len(labels):
@@ -44,10 +46,9 @@ class ProbingDataset(Dataset[Union[tuple[torch.Tensor, torch.Tensor], tuple[torc
                             "features and labels must have same length, got "
                             f"{len(self._sequence_features)} and {len(labels)}."
                         )
-                    self.features = torch.empty(0)  # placeholder for compatibility
+                    self.features = torch.empty(0)
                     return
 
-        # Pooled mode (existing behavior)
         features_tensor = self._as_feature_matrix(features)
         if int(features_tensor.shape[0]) != len(labels):
             raise ValueError(
@@ -90,7 +91,6 @@ class ProbingDataset(Dataset[Union[tuple[torch.Tensor, torch.Tensor], tuple[torc
 
         raw_features = cls._resolve_raw_features(extraction, activation_key=activation_key)
 
-        # Determine sample count
         if isinstance(raw_features, list):
             num_features = len(raw_features)
         else:
@@ -129,7 +129,6 @@ class ProbingDataset(Dataset[Union[tuple[torch.Tensor, torch.Tensor], tuple[torc
                         )
                     labels[idx] = 1
 
-        # Pass raw features (list or tensor) — constructor detects mode
         if isinstance(raw_features, list):
             return cls(features=raw_features, labels=labels)
         return cls(features=cls._as_feature_matrix(raw_features), labels=labels)

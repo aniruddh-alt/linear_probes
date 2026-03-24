@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
+from collections.abc import Mapping
 from typing import Any, Sequence
 
 
@@ -66,7 +67,7 @@ def write_run_manifest(
     selection_metric: str,
     split_indices: dict[str, Sequence[int]],
     split_sizes: tuple[int, int, int],
-    test_metrics: dict[str, float | tuple[float, float]],
+    test_metrics: Mapping[str, float | tuple[float, float]],
     controls: dict[str, dict[str, float]],
 ) -> str:
     """Write immutable JSON manifest for one run."""

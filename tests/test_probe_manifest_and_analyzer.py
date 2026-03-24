@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
+from collections.abc import Sequence
 from pathlib import Path
 from unittest.mock import patch
 
@@ -92,7 +93,7 @@ class ProbeManifestAndAnalyzerTests(unittest.TestCase):
     def test_manifest_round_trip_contains_expected_repro_fields(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             manifest_path = Path(tmp_dir) / "manifest.json"
-            split_indices = {"train": [4, 0, 2], "val": [1], "test": [3, 5]}
+            split_indices: dict[str, Sequence[int]] = {"train": [4, 0, 2], "val": [1], "test": [3, 5]}
             write_run_manifest(
                 manifest_path=manifest_path,
                 config={"probe": ProbeParams(), "sweep": SweepParams()},

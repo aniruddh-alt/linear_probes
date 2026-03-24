@@ -27,7 +27,7 @@ class DiffMeansEstimator:
         labels: torch.Tensor,
         *,
         key: str = "",
-        val_metrics: dict[str, float | tuple[float, float]] | None = None,
+        val_metrics: dict[str, float] | None = None,
     ) -> DiffMeansLayerResult:
         labels = labels.long()
         pos_mask = labels == 1
@@ -84,9 +84,9 @@ def evaluate_projection(
         threshold = float(scores.median().item())
     preds = (scores >= threshold).long()
     accuracy = float(BinaryAccuracy()(preds.float(), labels).item())
-    precision = float(BinaryPrecision(zero_division=0)(preds.float(), labels).item())
-    recall = float(BinaryRecall(zero_division=0)(preds.float(), labels).item())
-    f1 = float(BinaryF1Score(zero_division=0)(preds.float(), labels).item())
+    precision = float(BinaryPrecision()(preds.float(), labels).item())
+    recall = float(BinaryRecall()(preds.float(), labels).item())
+    f1 = float(BinaryF1Score()(preds.float(), labels).item())
 
     return {
         "auroc": auroc,

@@ -36,6 +36,7 @@ output:
             f.flush()
             cfg = load_run_config(f.name)
         self.assertIsInstance(cfg, DiffMeansConfig)
+        assert isinstance(cfg, DiffMeansConfig)
         self.assertEqual(cfg.run_name, "test-dm")
         self.assertEqual(cfg.seed, 42)
 
