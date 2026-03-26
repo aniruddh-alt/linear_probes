@@ -14,8 +14,8 @@ from activation import ActivationExtractor
 from core.configs import ExtractionParams, ModelParams, ProbeParams, SweepParams
 from dataset import ProbingSampleBuilder
 from probes import LayerProbeSweepRunner
-from probes.linear import BinaryProbeTrainer
 from probes.architectures import build_probe
+from probes.linear import BinaryProbeTrainer
 
 MODEL_NAME = "meta-llama/Llama-3.1-8B"
 DATA_DIR = Path("experiments/models_under_pressure/data")
@@ -39,16 +39,17 @@ def load_hf_split(
 ) -> tuple[list[dict], list[int]]:
     ds = load_dataset("Arrrlex/models-under-pressure", config, split=split)
     rows, labels = [], []
-    for row in ds:
-        label = 1 if row["labels"] == "high-stakes" else 0
-        rows.append({"id": row["ids"], "text": row["inputs"], "label": label})
+    for row in ds:  # type: ignore[union-attr]
+        label = 1 if row["labels"] == "high-stakes" else 0  # type: ignore[index]
+        rows.append({"id": row["ids"], "text": row["inputs"], "label": label})  # type: ignore[index]
         labels.append(label)
     if max_samples and len(rows) > max_samples:
         # Stratified subsample: keep class balance
         import random
+
         rng = random.Random(SEED)
-        pos = [(r, l) for r, l in zip(rows, labels) if l == 1]
-        neg = [(r, l) for r, l in zip(rows, labels) if l == 0]
+        pos = [(r, lab) for r, lab in zip(rows, labels) if lab == 1]
+        neg = [(r, lab) for r, lab in zip(rows, labels) if lab == 0]
         n_each = max_samples // 2
         rng.shuffle(pos)
         rng.shuffle(neg)
@@ -57,7 +58,9 @@ def load_hf_split(
         rows = [s[0] for s in sampled]
         labels = [s[1] for s in sampled]
     n_pos = sum(labels)
-    print(f"  [{config}/{split}] {len(rows)} samples: {n_pos} high-stakes, {len(labels) - n_pos} low-stakes")
+    print(
+        f"  [{config}/{split}] {len(rows)} samples: {n_pos} high-stakes, {len(labels) - n_pos} low-stakes"
+    )
     return rows, labels
 
 
@@ -85,8 +88,11 @@ def evaluate_ood(
         extraction = extractor.extract(bundle)
 
         from dataset.probing_dataset import ProbingDataset
+
         dataset = ProbingDataset.from_extraction_result(
-            extraction, activation_key=best_key, labels=labels,
+            extraction,
+            activation_key=best_key,
+            labels=labels,
         )
         loader = torch.utils.data.DataLoader(
             dataset,
@@ -95,7 +101,9 @@ def evaluate_ood(
             collate_fn=_get_collate_fn(dataset),
         )
 
-        model = build_probe(probe_params.probe_type, input_dim, **probe_params.probe_kwargs)
+        model = build_probe(
+            probe_params.probe_type, input_dim, **probe_params.probe_kwargs
+        )
         model.load_state_dict(best_probe_state)
         evaluator = BinaryProbeTrainer(model=model, config=probe_params)
         metrics = evaluator.evaluate(loader)
@@ -115,6 +123,7 @@ def evaluate_ood(
 def _get_collate_fn(dataset):
     if dataset.sequence_mode:
         from dataset.collate import sequence_collate_fn
+
         return sequence_collate_fn
     return None
 
@@ -125,8 +134,11 @@ def main() -> None:
 
     bundle = ProbingSampleBuilder.from_iterable(rows).to_samples(text_key="text")
     train_idx, val_idx, test_idx = bundle.train_val_test_split(
-        train_fraction=0.7, val_fraction=0.15, test_fraction=0.15,
-        seed=SEED, group_ids=bundle.ids,
+        train_fraction=0.7,
+        val_fraction=0.15,
+        test_fraction=0.15,
+        seed=SEED,
+        group_ids=bundle.ids,
     )
 
     targets = [f"layers_output:{i}" for i in MIDDLE_LAYERS]
@@ -139,7 +151,9 @@ def main() -> None:
             token_index=None,  # full sequence
         ),
     )
-    print(f"Extracting activations (full sequence, {TRAIN_SAMPLES} samples, {len(MIDDLE_LAYERS)} layers)...")
+    print(
+        f"Extracting activations (full sequence, {TRAIN_SAMPLES} samples, {len(MIDDLE_LAYERS)} layers)..."
+    )
     extraction = extractor.extract(bundle)
 
     probe_params = ProbeParams(
@@ -158,15 +172,19 @@ def main() -> None:
     )
     result = runner.run(
         extraction,
-        train_indices=train_idx, val_indices=val_idx, test_indices=test_idx,
-        labels=labels, group_ids=bundle.ids,
+        train_indices=train_idx,
+        val_indices=val_idx,
+        test_indices=test_idx,
+        labels=labels,
+        group_ids=bundle.ids,
     )
 
-    # In-distribution results
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("IN-DISTRIBUTION RESULTS")
-    print(f"{'='*60}")
-    print(f"Samples: {len(labels)} ({result.split_sizes[0]}/{result.split_sizes[1]}/{result.split_sizes[2]})")
+    print(f"{'=' * 60}")
+    print(
+        f"Samples: {len(labels)} ({result.split_sizes[0]}/{result.split_sizes[1]}/{result.split_sizes[2]})"
+    )
     print(f"Best layer: {result.best_key} (val_auroc={result.best_score:.4f})")
     print(f"\nTest metrics: {result.test_metrics}")
     print(f"Controls: {result.controls}")
@@ -199,7 +217,7 @@ def main() -> None:
             token_index=None,
         ),
     )
-    input_dim = int(best_probe.trainer.model.W_q.shape[0])
+    input_dim = int(getattr(best_probe.trainer.model, "W_q").shape[0])
     evaluate_ood(
         ood_extractor,
         best_key=result.best_key,
