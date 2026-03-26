@@ -11,7 +11,7 @@ from core.configs.params.model_params import ModelParams
 from core.configs.params.steering_params import SteeringParams
 from generation.response_generator import ResponseGenerator
 
-DATA_DIR = Path("examples/refusal_probing/data")
+DATA_DIR = Path("experiments/refusal_probing/data")
 MODEL_NAME = "meta-llama/Llama-3.1-8B-Instruct"
 DIRECTION_PATH = DATA_DIR / "refusal_direction.pt"
 

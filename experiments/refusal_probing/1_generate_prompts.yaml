@@ -1,14 +1,14 @@
 # Step 1: Generate diverse harmful + harmless prompts for refusal probing.
 #
 # Usage:
-#   oumi synth -c examples/refusal_probing/1_generate_prompts.yaml
+#   oumi synth -c experiments/refusal_probing/1_generate_prompts.yaml
 #
-# Output: examples/refusal_probing/data/prompts.jsonl
+# Output: experiments/refusal_probing/data/prompts.jsonl
 #   Each row: { "intent": ..., "topic": ..., "subtlety": ..., "prompt": ... }
 
 strategy: GENERAL
 num_samples: 256
-output_path: examples/refusal_probing/data/prompts.jsonl
+output_path: experiments/refusal_probing/data/prompts.jsonl
 
 strategy_params:
   # All examples must share the same keys

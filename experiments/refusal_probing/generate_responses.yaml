@@ -3,10 +3,10 @@
 # This runs the toolkit's ResponseGenerator against prompts from step 1.
 #
 # Usage (via toolkit runner):
-#   python -m cli.main examples/refusal_probing/generate_responses.yaml
+#   python -m cli.main experiments/refusal_probing/generate_responses.yaml
 #
-# Input:  examples/refusal_probing/data/prompts.jsonl (from step 1)
-# Output: examples/refusal_probing/data/responses.jsonl
+# Input:  experiments/refusal_probing/data/prompts.jsonl (from step 1)
+# Output: experiments/refusal_probing/data/responses.jsonl
 
 run_name: refusal_generate_responses
 seed: 42
@@ -23,5 +23,5 @@ generation:
   batch_size: 32
 
 io:
-  input_path: examples/refusal_probing/data/prompts.jsonl
-  output_dir: examples/refusal_probing/data
+  input_path: experiments/refusal_probing/data/prompts.jsonl
+  output_dir: experiments/refusal_probing/data

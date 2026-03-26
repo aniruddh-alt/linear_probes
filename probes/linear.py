@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from copy import deepcopy
 from dataclasses import replace
 from statistics import mean, stdev
-from typing import Any, cast
+from typing import Any
 
 import torch
 from torch import nn
@@ -360,9 +360,23 @@ def _loader_to_tensors(
         return torch.empty((0, 0), dtype=torch.float32), torch.empty(
             (0,), dtype=torch.long
         ), None
-    cat_features = torch.cat(features, dim=0)
+    if has_mask and features[0].ndim == 3:
+        # Sequence mode: pad all batches to the same max seq length before catting
+        max_seq = max(f.shape[1] for f in features)
+        padded_features, padded_masks = [], []
+        for f, m in zip(features, masks):
+            pad_len = max_seq - f.shape[1]
+            if pad_len > 0:
+                f = torch.nn.functional.pad(f, (0, 0, 0, pad_len))
+                m = torch.nn.functional.pad(m, (0, pad_len))
+            padded_features.append(f)
+            padded_masks.append(m)
+        cat_features = torch.cat(padded_features, dim=0)
+        cat_mask = torch.cat(padded_masks, dim=0)
+    else:
+        cat_features = torch.cat(features, dim=0)
+        cat_mask = torch.cat(masks, dim=0) if has_mask else None
     cat_labels = torch.cat(labels, dim=0)
-    cat_mask = torch.cat(masks, dim=0) if has_mask else None
     return cat_features, cat_labels, cat_mask
 
 

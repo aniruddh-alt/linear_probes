@@ -26,7 +26,7 @@ class LayerSpec:
 class ExtractionResult(TypedDict):
     model: ModelMetadata
     requested: list[str]
-    activations: dict[str, torch.Tensor]
+    activations: dict[str, torch.Tensor | list[torch.Tensor]]
     sample_ids: list[str]
     labels: list[int | None]
     storage: dict[str, Any]

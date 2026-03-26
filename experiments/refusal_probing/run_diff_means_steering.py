@@ -16,7 +16,7 @@ from dataset import ProbingSampleBuilder
 from directions import DiffMeansSweepRunner
 from generation.response_generator import ResponseGenerator
 
-DATA_DIR = Path("examples/refusal_probing/data")
+DATA_DIR = Path("experiments/refusal_probing/data")
 MODEL_NAME = "meta-llama/Llama-3.1-8B-Instruct"
 NUM_LAYERS = 32
 BATCH_SIZE = 2

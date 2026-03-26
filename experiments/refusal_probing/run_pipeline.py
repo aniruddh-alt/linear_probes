@@ -11,7 +11,7 @@ from core.configs import ExtractionParams, ModelParams, ProbeParams, SweepParams
 from dataset import ProbingSampleBuilder
 from probes import LayerProbeSweepRunner, ProbeAnalyzer
 
-DATA_DIR = Path("examples/refusal_probing/data")
+DATA_DIR = Path("experiments/refusal_probing/data")
 MODEL_NAME = "meta-llama/Llama-3.1-8B-Instruct"
 ARTIFACT_PATH = DATA_DIR / "activations"
 NUM_LAYERS = 32

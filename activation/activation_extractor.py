@@ -161,29 +161,39 @@ class ActivationExtractor:
                     self._normalize_saved_tensor(saved[name], batch_size=len(prompts))
                 )
 
-        outputs: dict[str, torch.Tensor] = {}
+        outputs: dict[str, torch.Tensor | list[torch.Tensor]] = {}
+        sequence_mode = resolved_token_index is None
         for name in requested:
             chunks = outputs_chunks[name]
             if not chunks:
                 outputs[name] = torch.empty((0,))
                 continue
-            try:
-                outputs[name] = torch.cat(chunks, dim=0)
-            except RuntimeError as exc:
-                shapes = ", ".join(str(tuple(c.shape)) for c in chunks)
-                raise ValueError(
-                    f"Cannot concatenate activation chunks for '{name}'. "
-                    f"Encountered shapes: {shapes}."
-                ) from exc
+            if sequence_mode and chunks[0].ndim == 3:
+                # Variable-length sequences: unbatch into per-sample 2D tensors
+                per_sample: list[torch.Tensor] = []
+                for chunk in chunks:
+                    per_sample.extend(chunk.unbind(dim=0))
+                outputs[name] = per_sample
+            else:
+                try:
+                    outputs[name] = torch.cat(chunks, dim=0)
+                except RuntimeError as exc:
+                    shapes = ", ".join(str(tuple(c.shape)) for c in chunks)
+                    raise ValueError(
+                        f"Cannot concatenate activation chunks for '{name}'. "
+                        f"Encountered shapes: {shapes}."
+                    ) from exc
 
         if requested:
+            first_out = outputs[requested[0]]
             total_items = (
-                int(outputs[requested[0]].shape[0])
-                if outputs[requested[0]].ndim > 0
-                else 1
+                len(first_out)
+                if isinstance(first_out, list)
+                else int(first_out.shape[0]) if first_out.ndim > 0 else 1
             )
             for name in requested[1:]:
-                key_items = int(outputs[name].shape[0]) if outputs[name].ndim > 0 else 1
+                out = outputs[name]
+                key_items = len(out) if isinstance(out, list) else (int(out.shape[0]) if out.ndim > 0 else 1)
                 if key_items != total_items:
                     raise ValueError(
                         "Activation outputs have inconsistent sample counts across keys: "
@@ -529,8 +539,16 @@ class ActivationExtractor:
     ) -> dict[str, Any]:
         save_path.parent.mkdir(parents=True, exist_ok=True)
         manifest_path, safetensors_path = self._resolve_storage_paths(save_path)
+        # Skip safetensors persistence for sequence mode (list-of-tensors)
+        has_list_activations = any(
+            isinstance(v, list) for v in result["activations"].values()
+        )
+        if has_list_activations:
+            return {"mode": "in_memory"}
         tensors = {
-            key: tensor.contiguous() for key, tensor in result["activations"].items()
+            key: tensor.contiguous()
+            for key, tensor in result["activations"].items()
+            if isinstance(tensor, torch.Tensor)
         }
         save_file(tensors, str(safetensors_path))
         storage: dict[str, Any] = {

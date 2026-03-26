@@ -27,19 +27,19 @@ spec:
           # Step 1: Generate responses with Llama 3.1 8B
           echo "=== STEP 1: Generating responses ==="
           huggingface-cli login --token $HF_TOKEN
-          PYTHONPATH=. python -m cli.main run -c examples/refusal_probing/generate_responses.yaml
+          PYTHONPATH=. python -m cli.main run -c experiments/refusal_probing/generate_responses.yaml
 
           # Step 2: Label responses with Claude Sonnet
           echo "=== STEP 2: Labeling responses ==="
-          oumi synth -c examples/refusal_probing/2_label_responses.yaml
+          oumi synth -c experiments/refusal_probing/2_label_responses.yaml
 
           # Step 3: Extract activations + train probes
           echo "=== STEP 3: Extracting activations and training probes ==="
-          PYTHONPATH=. python examples/refusal_probing/run_pipeline.py
+          PYTHONPATH=. python experiments/refusal_probing/run_pipeline.py
 
           # Keep pod alive for 1 hour to allow kubectl cp
           echo "=== DONE — pod will stay alive for 1h for result retrieval ==="
-          echo "Run: kubectl cp oumi-science/<pod-name>:/workspace/linear_probes/examples/refusal_probing/data/ ./results/"
+          echo "Run: kubectl cp oumi-science/<pod-name>:/workspace/linear_probes/experiments/refusal_probing/data/ ./results/"
           sleep 3600
         env:
         - name: HF_TOKEN

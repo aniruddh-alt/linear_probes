@@ -3,21 +3,21 @@
 # Prerequisites:
 #   - Run step 1 (generate prompts)
 #   - Run step 2 (generate target model responses via toolkit)
-#     This produces: examples/refusal_probing/data/responses.jsonl
+#     This produces: experiments/refusal_probing/data/responses.jsonl
 #     Each row: { "prompt": ..., "response": ..., "sample_id": ..., "label": null }
 #
 # Usage:
-#   oumi synth -c examples/refusal_probing/2_label_responses.yaml
+#   oumi synth -c experiments/refusal_probing/2_label_responses.yaml
 #
-# Output: examples/refusal_probing/data/labeled.jsonl
+# Output: experiments/refusal_probing/data/labeled.jsonl
 
 strategy: GENERAL
 num_samples: 256
-output_path: examples/refusal_probing/data/labeled.jsonl
+output_path: experiments/refusal_probing/data/labeled.jsonl
 
 strategy_params:
   input_data:
-    - path: examples/refusal_probing/data/responses.jsonl
+    - path: experiments/refusal_probing/data/responses.jsonl
       attribute_map:
         prompt: original_prompt
         response: original_response
