@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from core.configs.base import BaseConfig
 from core.configs.params.model_params import ModelParams
 from core.configs.params.extraction_params import ExtractionParams
 from core.configs.params.probe_params import ProbeParams

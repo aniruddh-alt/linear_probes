@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from core.configs.probe_config import ProbeConfig
-from runners.experiment_runner import load_run_config, run_experiment, RunResult
+from runners.experiment_runner import load_run_config, run_experiment
 
 
 QUICKSTART_PATH = Path(__file__).resolve().parent.parent / "configs" / "recipes" / "quickstart_probe.yaml"

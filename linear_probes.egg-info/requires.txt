@@ -1,0 +1,12 @@
+datasets>=3.0.0
+nnterp>=1.2.2
+safetensors
+einops
+torch
+typing_extensions
+torchmetrics
+matplotlib>=3.10.8
+omegaconf>=2.3.0
+
+[dev]
+pytest

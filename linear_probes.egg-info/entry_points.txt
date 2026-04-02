@@ -1,0 +1,2 @@
+[console_scripts]
+interp = cli.main:entrypoint

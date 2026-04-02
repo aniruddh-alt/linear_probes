@@ -21,6 +21,9 @@ dev = [
     "pytest",
 ]
 
+[project.scripts]
+interp = "cli.main:entrypoint"
+
 [build-system]
 requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"

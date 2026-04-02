@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 
 
 def apply_dot_overrides(

@@ -20,7 +20,7 @@ class TestGenerationResult:
         result = self._make_result()
         assert len(result.prompts) == 3
         assert len(result.responses) == 3
-        assert all(l is None for l in result.labels)
+        assert all(label is None for label in result.labels)
 
     def test_to_jsonl_and_from_jsonl_round_trip(self, tmp_path):
         original = self._make_result(n=4, labeled=True)

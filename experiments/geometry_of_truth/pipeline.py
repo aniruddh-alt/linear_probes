@@ -5,8 +5,7 @@ import pandas as pd
 import torch as t
 from dotenv import load_dotenv  # type: ignore[import-untyped]
 from torch import Tensor
-from tqdm import tqdm
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 load_dotenv()
 device = t.device("cuda" if t.cuda.is_available() else "cpu")

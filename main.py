@@ -62,7 +62,7 @@ def main() -> None:
     ]
 
     bundle = ProbingSampleBuilder.from_iterable(records).to_samples(text_key="text")
-    labels = [int(l) for l in bundle.labels if l is not None]
+    labels = [int(label) for label in bundle.labels if label is not None]
     train_idx, val_idx, test_idx = bundle.train_val_test_split(
         train_fraction=0.7, val_fraction=0.15, test_fraction=0.15,
         seed=SEED, group_ids=bundle.ids,

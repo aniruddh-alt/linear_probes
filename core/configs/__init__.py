@@ -4,7 +4,9 @@ from core.configs.base import BaseConfig
 from core.configs.diff_means_config import DiffMeansConfig
 from core.configs.extract_config import ExtractConfig
 from core.configs.generate_config import GenerateConfig
+from core.configs.pipeline_config import PipelineConfig
 from core.configs.probe_config import ProbeConfig
+from core.configs.params.dataset_params import DatasetParams
 from core.configs.params.extraction_params import ExtractionParams
 from core.configs.params.generation_params import GenerationParams
 from core.configs.params.io_params import IOParams
@@ -17,6 +19,7 @@ from core.configs.params.sweep_params import SweepParams
 
 __all__ = [
     "BaseConfig",
+    "DatasetParams",
     "DiffMeansConfig",
     "ExtractConfig",
     "ExtractionParams",
@@ -25,6 +28,7 @@ __all__ = [
     "IOParams",
     "ModelParams",
     "OutputParams",
+    "PipelineConfig",
     "ProbeConfig",
     "ProbeParams",
     "SplitParams",

@@ -127,7 +127,7 @@ def main() -> None:
         print(f"\n[PROMPT] {p}\n[RESPONSE] {r[:300]}")
 
     print("\n" + "=" * 60)
-    print(f"STEERED (diff-means, additive strength=-1, layers 14-20)")
+    print("STEERED (diff-means, additive strength=-1, layers 14-20)")
     print("=" * 60)
     steering = SteeringParams(
         enabled=True, vector_path=str(direction_path),

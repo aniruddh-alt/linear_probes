@@ -9,16 +9,14 @@ import sys
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="toolkit",
-        description="Linear probes interpretability toolkit",
+        prog="interp",
+        description="Interpretability toolkit — activation extraction, probing, and analysis.",
+        usage="interp <config.yaml> [-o key=val ...]\n       interp run -c <config.yaml> [-o key=val ...]",
     )
-    sub = parser.add_subparsers(dest="command")
-
-    run_parser = sub.add_parser("run", help="Run an experiment from a YAML config")
-    run_parser.add_argument(
-        "-c", "--config", required=True, help="Path to YAML config file or alias"
+    parser.add_argument(
+        "config", help="Path to YAML config file"
     )
-    run_parser.add_argument(
+    parser.add_argument(
         "-o",
         "--override",
         action="append",
@@ -29,7 +27,6 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _parse_overrides(raw_overrides: list[str]) -> dict[str, str]:
-    """Parse a list of 'key=value' strings into a dict."""
     overrides: dict[str, str] = {}
     for item in raw_overrides:
         if "=" not in item:
@@ -44,21 +41,17 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    if args.command is None:
-        parser.print_help()
-        return 1
+    from runners.experiment_runner import run_experiment
 
-    if args.command == "run":
-        from runners.experiment_runner import run_experiment
+    overrides = _parse_overrides(args.override)
+    result = run_experiment(config_path=args.config, overrides=overrides or None)
+    print(json.dumps(result.summary, indent=2))
+    return 0
 
-        overrides = _parse_overrides(args.override)
-        result = run_experiment(config_path=args.config, overrides=overrides or None)
-        print(json.dumps(result.summary, indent=2))
-        return 0
 
-    parser.print_help()
-    return 1
+def entrypoint() -> None:
+    sys.exit(main())
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    entrypoint()

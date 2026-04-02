@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import unittest
-from typing import cast
 
 import torch
 from torch.utils.data import DataLoader, TensorDataset
