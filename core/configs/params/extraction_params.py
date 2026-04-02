@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional
 
 from core.configs.base import BaseConfig
 
@@ -18,6 +17,6 @@ class ExtractionParams(BaseConfig):
     save_path: str = ""
     activations: list[str] = field(default_factory=list)
     batch_size: int = 8
-    token_index: Optional[int] = -1
+    token_index: int | None = -1
     remote: bool = False
     to_cpu: bool = True

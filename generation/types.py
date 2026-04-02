@@ -38,7 +38,7 @@ class GenerationResult:
         """Export prompt-response pairs to JSONL for external labeling."""
         with Path(path).open("w", encoding="utf-8") as f:
             for prompt, response, sid, label in zip(
-                self.prompts, self.responses, self.sample_ids, self.labels
+                self.prompts, self.responses, self.sample_ids, self.labels, strict=True
             ):
                 row = {
                     "prompt": prompt,
@@ -49,7 +49,7 @@ class GenerationResult:
                 f.write(json.dumps(row) + "\n")
 
     @classmethod
-    def from_jsonl(cls, path: str | Path) -> "GenerationResult":
+    def from_jsonl(cls, path: str | Path) -> GenerationResult:
         """Load a GenerationResult from a JSONL file."""
         prompts, responses, sample_ids, labels = [], [], [], []
         with Path(path).open("r", encoding="utf-8") as f:
@@ -79,7 +79,7 @@ class GenerationResult:
                 concatenated. If False, original prompts only.
         """
         if include_response:
-            texts = [f"{p}{r}" for p, r in zip(self.prompts, self.responses)]
+            texts = [f"{p}{r}" for p, r in zip(self.prompts, self.responses, strict=True)]
         else:
             texts = list(self.prompts)
         return SampleBundle(

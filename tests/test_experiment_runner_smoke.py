@@ -3,10 +3,10 @@ from __future__ import annotations
 
 import pytest
 
-from runners.experiment_runner import load_run_config, run_experiment
-from core.configs.generate_config import GenerateConfig
 from core.configs.extract_config import ExtractConfig
+from core.configs.generate_config import GenerateConfig
 from core.configs.probe_config import ProbeConfig
+from runners.experiment_runner import load_run_config, run_experiment
 
 
 class TestExperimentRunner:

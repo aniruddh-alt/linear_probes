@@ -4,21 +4,21 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Union
+from typing import Any
 
 from omegaconf import OmegaConf
 
+from core.configs.aliases import resolve_config_alias
 from core.configs.base import BaseConfig
 from core.configs.diff_means_config import DiffMeansConfig
 from core.configs.extract_config import ExtractConfig
 from core.configs.generate_config import GenerateConfig
+from core.configs.overrides import apply_dot_overrides
+from core.configs.params.extraction_params import ExtractionParams
 from core.configs.pipeline_config import PipelineConfig
 from core.configs.probe_config import ProbeConfig
-from core.configs.params.extraction_params import ExtractionParams
-from core.configs.aliases import resolve_config_alias
-from core.configs.overrides import apply_dot_overrides
 
-StageConfig = Union[GenerateConfig, ExtractConfig, ProbeConfig, DiffMeansConfig, PipelineConfig]
+StageConfig = GenerateConfig | ExtractConfig | ProbeConfig | DiffMeansConfig | PipelineConfig
 
 STAGE_CONFIG_MAP: dict[str, type[BaseConfig]] = {
     "generate":    GenerateConfig,
@@ -186,8 +186,8 @@ def _action_pipeline(cfg: PipelineConfig) -> RunResult:
 
     if cfg.dataset.max_samples and len(rows) > cfg.dataset.max_samples:
         rng = random.Random(cfg.seed)
-        pos = [(r, l) for r, l in zip(rows, labels) if l == 1]
-        neg = [(r, l) for r, l in zip(rows, labels) if l == 0]
+        pos = [(r, l) for r, l in zip(rows, labels, strict=True) if l == 1]
+        neg = [(r, l) for r, l in zip(rows, labels, strict=True) if l == 0]
         n_each = cfg.dataset.max_samples // 2
         rng.shuffle(pos)
         rng.shuffle(neg)
@@ -255,8 +255,8 @@ def _action_pipeline(cfg: PipelineConfig) -> RunResult:
         m = best_probe.trainer.model
         w = getattr(m, "W_q", None)
         if w is None:
-            w = getattr(m, "linear").weight  # type: ignore[union-attr]
-        input_dim = int(w.shape[0])
+            w = m.linear.weight  # type: ignore[union-attr]
+        input_dim = int(w.shape[0])  # type: ignore[index]
         best_state = best_probe.trainer.model.state_dict()
 
         ood_extractor = ActivationExtractor(

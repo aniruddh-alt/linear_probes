@@ -6,8 +6,12 @@ import torch
 from torch.utils.data import DataLoader, TensorDataset
 
 from core.configs import ProbeParams
-from probes.linear import BinaryLinearProbeTrainer, BinaryProbeTrainer, run_probe_with_controls
 from probes.architectures import build_probe
+from probes.linear import (
+    BinaryLinearProbeTrainer,
+    BinaryProbeTrainer,
+    run_probe_with_controls,
+)
 
 
 def _scalar(v: float | tuple[float, float]) -> float:

@@ -4,8 +4,8 @@ from .types import DiffMeansLayerResult, DiffMeansSweepResult
 
 __all__ = [
     "DiffMeansEstimator",
-    "DiffMeansSweepRunner",
     "DiffMeansLayerResult",
     "DiffMeansSweepResult",
+    "DiffMeansSweepRunner",
     "evaluate_projection",
 ]

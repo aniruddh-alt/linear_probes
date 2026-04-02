@@ -111,11 +111,7 @@ class BinaryProbeTrainer:
                 history["val_loss"].append(val_loss)
                 history["val_accuracy"].append(metrics["accuracy"])
                 if self.config.early_stopping_patience is not None:
-                    if best_val_loss is None:
-                        best_val_loss = val_loss
-                        best_state_dict = deepcopy(self.model.state_dict())
-                        epochs_without_improvement = 0
-                    elif (
+                    if best_val_loss is None or (
                         best_val_loss - val_loss > self.config.early_stopping_min_delta
                     ):
                         best_val_loss = val_loss
@@ -364,7 +360,7 @@ def _loader_to_tensors(
         # Sequence mode: pad all batches to the same max seq length before catting
         max_seq = max(f.shape[1] for f in features)
         padded_features, padded_masks = [], []
-        for f, m in zip(features, masks):
+        for f, m in zip(features, masks, strict=True):
             pad_len = max_seq - f.shape[1]
             if pad_len > 0:
                 f = torch.nn.functional.pad(f, (0, 0, 0, pad_len))

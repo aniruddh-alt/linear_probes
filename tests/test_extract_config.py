@@ -1,5 +1,6 @@
 """Tests for ExtractConfig."""
 from __future__ import annotations
+
 from core.configs.extract_config import ExtractConfig
 
 

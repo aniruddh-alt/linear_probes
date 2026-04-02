@@ -1,9 +1,10 @@
 from __future__ import annotations
+
 import tempfile
 import unittest
 
 from core.configs.diff_means_config import DiffMeansConfig
-from runners.experiment_runner import load_run_config, STAGE_CONFIG_MAP
+from runners.experiment_runner import STAGE_CONFIG_MAP, load_run_config
 
 
 class DiffMeansConfigTests(unittest.TestCase):

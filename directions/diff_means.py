@@ -42,10 +42,7 @@ class DiffMeansEstimator:
         neg_mean = features[neg_mask].float().mean(dim=0)
         raw_direction = pos_mean - neg_mean
         raw_norm = float(torch.linalg.vector_norm(raw_direction).item())
-        if raw_norm == 0.0:
-            direction = raw_direction
-        else:
-            direction = raw_direction / raw_norm
+        direction = raw_direction if raw_norm == 0.0 else raw_direction / raw_norm
         return DiffMeansLayerResult(
             key=key,
             direction=direction,

@@ -1,9 +1,10 @@
 """Layer-wise diff-in-means sweep orchestrator."""
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 from statistics import mean, stdev
-from typing import Any, Sequence
+from typing import Any
 
 import torch
 

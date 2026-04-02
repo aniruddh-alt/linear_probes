@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from core.configs.params.model_params import ModelParams
 from core.configs.params.extraction_params import ExtractionParams
+from core.configs.params.model_params import ModelParams
+from core.configs.params.output_params import OutputParams
 from core.configs.params.probe_params import ProbeParams
 from core.configs.params.split_params import SplitParams
-from core.configs.params.output_params import OutputParams
 
 
 class TestBaseConfig:

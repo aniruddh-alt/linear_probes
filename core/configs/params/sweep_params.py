@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional
 
 from core.configs.base import BaseConfig
 
@@ -12,7 +11,7 @@ from core.configs.base import BaseConfig
 class SweepParams(BaseConfig):
     """Configuration for layerwise probe sweep orchestration."""
 
-    activation_targets: Optional[list] = None
+    activation_targets: list | None = None
     batch_size: int = 32
     selection_metric: str = "auroc"
     maximize_metric: bool = True

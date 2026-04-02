@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 from core.configs.base import BaseConfig
 
@@ -15,7 +14,7 @@ class SplitParams(BaseConfig):
     train_fraction: float = 0.7
     val_fraction: float = 0.15
     test_fraction: float = 0.15
-    split_seed: Optional[int] = 0
+    split_seed: int | None = 0
     auto_group_by_id_when_none: bool = True
 
     def __post_init__(self) -> None:

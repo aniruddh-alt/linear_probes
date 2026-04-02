@@ -1,7 +1,10 @@
 # tests/test_diff_means_sweep.py
 from __future__ import annotations
+
 import unittest
+
 import torch
+
 from core.configs import SweepParams
 from dataset import ProbingSampleBuilder
 from directions.sweep import DiffMeansSweepRunner
@@ -38,7 +41,7 @@ class DiffMeansSweepRunnerTests(unittest.TestCase):
         return extraction, labels, train_idx, val_idx, test_idx
 
     def test_selects_informative_layer(self) -> None:
-        extraction, labels, train_idx, val_idx, test_idx = self._make_extraction(180)
+        extraction, _labels, train_idx, val_idx, test_idx = self._make_extraction(180)
         result = DiffMeansSweepRunner(
             sweep=SweepParams(activation_targets=[0, 1], selection_metric="auroc"),
         ).run(
@@ -58,7 +61,7 @@ class DiffMeansSweepRunnerTests(unittest.TestCase):
         )
 
     def test_controls_included(self) -> None:
-        extraction, labels, train_idx, val_idx, test_idx = self._make_extraction(180)
+        extraction, _labels, train_idx, val_idx, test_idx = self._make_extraction(180)
         result = DiffMeansSweepRunner(
             sweep=SweepParams(
                 activation_targets=[0, 1],
@@ -76,7 +79,7 @@ class DiffMeansSweepRunnerTests(unittest.TestCase):
         self.assertIn("auroc_mean", result.controls["shuffled_labels"])
 
     def test_single_layer(self) -> None:
-        extraction, labels, train_idx, val_idx, test_idx = self._make_extraction(90)
+        extraction, _labels, train_idx, val_idx, test_idx = self._make_extraction(90)
         result = DiffMeansSweepRunner(
             sweep=SweepParams(activation_targets=[1]),
         ).run(

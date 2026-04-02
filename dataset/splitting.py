@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import random
-from typing import Sequence
+from collections.abc import Sequence
 
 
 def stratified_train_val_test_split(

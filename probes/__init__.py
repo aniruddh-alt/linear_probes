@@ -12,13 +12,13 @@ from .sweep import (
 from .types import LayerProbeSweepResult, TrainedLayerProbe
 
 __all__ = [
-    "LinearProbe",
-    "BinaryProbeTrainer",
     "BinaryLinearProbeTrainer",
-    "build_probe",
-    "run_probe_with_controls",
-    "TrainedLayerProbe",
+    "BinaryProbeTrainer",
     "LayerProbeSweepResult",
     "LayerProbeSweepRunner",
+    "LinearProbe",
     "ProbeAnalyzer",
+    "TrainedLayerProbe",
+    "build_probe",
+    "run_probe_with_controls",
 ]

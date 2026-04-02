@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import fields, is_dataclass
-from datetime import datetime, timezone
 import hashlib
 import json
+from collections.abc import Mapping, Sequence
+from dataclasses import fields, is_dataclass
+from datetime import datetime, timezone
 from pathlib import Path
-from collections.abc import Mapping
-from typing import Any, Sequence
+from typing import Any
 
 
 def compute_dataset_fingerprint(

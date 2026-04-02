@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from dataclasses import fields
 from pathlib import Path
-from typing import Any, Sequence, cast
+from typing import Any, cast
 
 import torch
 from safetensors.torch import save_file
@@ -145,7 +146,7 @@ class ActivationExtractor:
             prompts = self._normalize_batch(batch)
             saved: dict[str, Any] = {}
             with self.model.trace(prompts, remote=resolved_remote):
-                for name, spec in zip(requested, parsed_specs):
+                for name, spec in zip(requested, parsed_specs, strict=True):
                     activation = self._resolve_activation(spec)
                     activation = self._select_token_position(
                         activation,

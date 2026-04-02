@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Self
 
 from omegaconf import DictConfig, OmegaConf
+from typing_extensions import Self
 
 
 @dataclass

@@ -11,7 +11,7 @@ def sequence_collate_fn(
     """Pad variable-length (S, D) tensors to (S_max, D) with attention mask."""
     if not batch:
         raise ValueError("Cannot collate an empty batch.")
-    features, labels, masks = zip(*batch)
+    features, labels, _masks = zip(*batch, strict=True)
     max_len = max(f.shape[0] for f in features)
     dim = features[0].shape[-1]
     padded = torch.zeros(len(features), max_len, dim)

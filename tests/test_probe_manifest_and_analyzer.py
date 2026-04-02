@@ -11,7 +11,11 @@ import torch
 
 from core.configs import ProbeParams, SweepParams
 from probes.analyze import ProbeAnalyzer
-from probes.run_manifest import compute_dataset_fingerprint, hash_indices, write_run_manifest
+from probes.run_manifest import (
+    compute_dataset_fingerprint,
+    hash_indices,
+    write_run_manifest,
+)
 from probes.types import TrainedLayerProbe
 
 

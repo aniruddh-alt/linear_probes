@@ -18,7 +18,7 @@ class MaxRollingMeanProbe(nn.Module):
     def forward(self, x: torch.Tensor, mask: torch.Tensor | None = None) -> torch.Tensor:
         if x.ndim == 2:
             return self.linear(x)
-        B, S, D = x.shape
+        _B, S, _D = x.shape
         T = min(self.window_size, S)
         pooled = torch.nn.functional.avg_pool1d(
             x.transpose(1, 2), kernel_size=T, stride=1

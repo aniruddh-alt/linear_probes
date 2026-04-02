@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from cli.main import build_parser, _parse_overrides, main
+from cli.main import _parse_overrides, build_parser, main
 
 
 class TestCli:

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 from core.configs.base import BaseConfig
 
@@ -21,11 +20,11 @@ class ModelParams(BaseConfig):
     """
 
     model_name: str = ""
-    device: Optional[str] = None
-    dtype: Optional[str] = None
+    device: str | None = None
+    dtype: str | None = None
     load_in_8bit: bool = False
     load_in_4bit: bool = False
-    attn_implementation: Optional[str] = None
+    attn_implementation: str | None = None
     trust_remote_code: bool = False
     low_cpu_mem_usage: bool = True
     output_attentions: bool = False

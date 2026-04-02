@@ -1,5 +1,6 @@
 """Tests for GenerateConfig."""
 from __future__ import annotations
+
 from core.configs.generate_config import GenerateConfig
 
 

@@ -1,5 +1,6 @@
 """Tests for ProbeConfig."""
 from __future__ import annotations
+
 from core.configs.probe_config import ProbeConfig
 
 

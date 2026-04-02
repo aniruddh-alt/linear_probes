@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Callable, Sequence
+from collections.abc import Callable, Sequence
 
 import torch
 from safetensors.torch import load_file
@@ -27,10 +27,7 @@ def _load_vector(
     """Load a steering vector from .pt or .safetensors file."""
     if path.endswith(".safetensors"):
         tensors = load_file(path, device=device)
-        if key:
-            vec = tensors[key]
-        else:
-            vec = next(iter(tensors.values()))
+        vec = tensors[key] if key else next(iter(tensors.values()))
     else:
         vec = torch.load(path, map_location=device, weights_only=True)
 
@@ -47,7 +44,7 @@ def _make_steering_hook(
 ) -> Callable:
     """Create a forward hook that steers activations."""
 
-    def hook(module, input, output):  # noqa: A002
+    def hook(module, input, output):
         if isinstance(output, torch.Tensor):
             h = output
         elif isinstance(output, tuple):
@@ -63,8 +60,8 @@ def _make_steering_hook(
         if isinstance(output, torch.Tensor):
             return h
         if isinstance(output, tuple):
-            return (h,) + output[1:]
-        first_key = list(output.keys())[0]
+            return (h, *output[1:])
+        first_key = next(iter(output.keys()))
         output[first_key] = h
         return output
 

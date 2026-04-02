@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence, Union
+from typing import Any
 
 import torch
 from torch.utils.data import Dataset
@@ -15,7 +16,7 @@ from activation.storage import (
 )
 
 
-class ProbingDataset(Dataset[Union[tuple[torch.Tensor, torch.Tensor], tuple[torch.Tensor, torch.Tensor, torch.Tensor]]]):
+class ProbingDataset(Dataset[tuple[torch.Tensor, torch.Tensor] | tuple[torch.Tensor, torch.Tensor, torch.Tensor]]):
     """Dataset for binary probes supporting pooled (N, D) and sequence (variable S, D) modes."""
 
     def __init__(
@@ -32,8 +33,7 @@ class ProbingDataset(Dataset[Union[tuple[torch.Tensor, torch.Tensor], tuple[torc
         self.sequence_mode = False
         self._sequence_features: list[torch.Tensor] | None = None
 
-        if isinstance(features, list) and features and isinstance(features[0], torch.Tensor):
-            if features[0].ndim == 2:
+        if isinstance(features, list) and features and isinstance(features[0], torch.Tensor) and features[0].ndim == 2:
                 hidden_dim = features[0].shape[1]
                 is_variable_length = any(f.shape[0] != features[0].shape[0] for f in features)
                 all_2d_same_hidden = all(f.ndim == 2 and f.shape[1] == hidden_dim for f in features)
@@ -77,7 +77,7 @@ class ProbingDataset(Dataset[Union[tuple[torch.Tensor, torch.Tensor], tuple[torc
         activation_key: str,
         labels: Sequence[int] | None = None,
         positive_indices: Iterable[int] | None = None,
-    ) -> "ProbingDataset":
+    ) -> ProbingDataset:
         """Build dataset from one activation stream in an ExtractionResult."""
         storage = extraction.get("storage")
         if activation_key not in extraction["activations"] and not (
@@ -142,7 +142,7 @@ class ProbingDataset(Dataset[Union[tuple[torch.Tensor, torch.Tensor], tuple[torc
         labels: Sequence[int] | None = None,
         positive_indices: Iterable[int] | None = None,
         map_location: str | torch.device = "cpu",
-    ) -> "ProbingDataset":
+    ) -> ProbingDataset:
         extraction = load_extraction_manifest(
             Path(extraction_path), map_location=map_location
         )

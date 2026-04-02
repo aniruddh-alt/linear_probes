@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import csv
 import json
+from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
-from typing import Any, Callable, Iterable, Sequence
+from typing import Any
 
 from torch.utils.data import DataLoader, Dataset
 
@@ -35,7 +36,7 @@ class ProbingSampleBuilder:
         self.records = list(records)
 
     @classmethod
-    def from_file(cls, path: str | Path) -> "ProbingSampleBuilder":
+    def from_file(cls, path: str | Path) -> ProbingSampleBuilder:
         file_path = Path(path)
         suffix = file_path.suffix.lower()
         if suffix == ".json":
@@ -54,7 +55,7 @@ class ProbingSampleBuilder:
         return cls(data)
 
     @classmethod
-    def from_iterable(cls, data: Iterable[Record]) -> "ProbingSampleBuilder":
+    def from_iterable(cls, data: Iterable[Record]) -> ProbingSampleBuilder:
         return cls(list(data))
 
     def to_samples(

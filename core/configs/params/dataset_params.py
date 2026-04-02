@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional
 
 from core.configs.base import BaseConfig
 
@@ -19,7 +18,7 @@ class DatasetParams(BaseConfig):
     label_key: str = "label"
     id_key: str = "id"
     label_map: dict[str, int] = field(default_factory=dict)
-    max_samples: Optional[int] = None
+    max_samples: int | None = None
     ood_configs: list[str] = field(default_factory=list)
     ood_split: str = "test"
 

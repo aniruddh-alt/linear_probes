@@ -5,8 +5,8 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
-from safetensors.torch import save_file
 import torch
+from safetensors.torch import save_file
 from torch.utils.data import DataLoader
 
 from activation.activation_extractor import ActivationExtractor

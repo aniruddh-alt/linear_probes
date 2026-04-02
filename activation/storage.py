@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 import torch
 from safetensors import safe_open
@@ -96,20 +97,19 @@ def _available_activation_keys(extraction: Mapping[str, Any]) -> list[str]:
 
     activations = extraction.get("activations", {})
     if isinstance(activations, dict):
-        for key in activations.keys():
+        for key in activations:
             key_text = str(key)
             if key_text not in ordered:
                 ordered.append(key_text)
 
     storage = extraction.get("storage")
-    if isinstance(storage, dict):
-        if storage.get("mode") == "safetensors":
+    if isinstance(storage, dict) and storage.get("mode") == "safetensors":
             safetensors_path = storage.get("safetensors_path")
             if isinstance(safetensors_path, str):
                 with safe_open(
                     safetensors_path, framework="pt", device="cpu"
                 ) as handle:
-                    for key in handle.keys():
+                    for key in handle.keys():  # noqa: SIM118 - safe_open is not iterable
                         key_text = str(key)
                         if key_text not in ordered:
                             ordered.append(key_text)

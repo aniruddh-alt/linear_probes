@@ -1,6 +1,8 @@
 {
   "venvPath": ".",
   "venv": ".venv",
-  "pythonVersion": "3.13",
-  "typeCheckingMode": "basic"
+  "pythonVersion": "3.10",
+  "typeCheckingMode": "basic",
+  "include": ["activation", "cli", "core", "dataset", "directions", "generation", "probes", "runners"],
+  "exclude": ["**/__pycache__", ".venv", "tests"]
 }

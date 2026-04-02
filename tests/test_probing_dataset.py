@@ -5,8 +5,8 @@ import unittest
 from pathlib import Path
 from typing import cast
 
-from safetensors.torch import save_file
 import torch
+from safetensors.torch import save_file
 
 from dataset.collate import sequence_collate_fn
 from dataset.probing_dataset import ProbingDataset
@@ -203,7 +203,7 @@ class SequenceModeProbingDatasetTests(unittest.TestCase):
         features = [torch.randn(3, 4), torch.randn(5, 4)]
         ds = ProbingDataset(features=features, labels=[0, 1])
         batch = cast(list[tuple[torch.Tensor, torch.Tensor, torch.Tensor]], [ds[0], ds[1]])
-        padded_features, labels, mask = sequence_collate_fn(batch)
+        padded_features, _labels, mask = sequence_collate_fn(batch)
         self.assertEqual(padded_features.shape, (2, 5, 4))
         self.assertEqual(mask.shape, (2, 5))
         self.assertEqual(mask[0, :3].sum().item(), 3)
