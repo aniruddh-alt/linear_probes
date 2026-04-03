@@ -212,11 +212,10 @@ def run_probe_sweep(
     probe_name: str,
 ):
     """Train probes across all layers and save results."""
-    builder = ProbingSampleBuilder.from_iterable(
-        [{"id": gid, "text": "", "label": l} for gid, l in zip(group_ids, labels)]
-    )
-    bundle = builder.to_samples(text_key="text")
-    train_idx, val_idx, test_idx = bundle.train_val_test_split(
+    from dataset.splitting import stratified_train_val_test_split
+
+    train_idx, val_idx, test_idx = stratified_train_val_test_split(
+        labels=labels,
         train_fraction=0.7, val_fraction=0.15, test_fraction=0.15,
         seed=SEED, group_ids=group_ids,
     )
