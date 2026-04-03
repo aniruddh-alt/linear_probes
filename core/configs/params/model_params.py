@@ -20,6 +20,7 @@ class ModelParams(BaseConfig):
     """
 
     model_name: str = ""
+    revision: str | None = None
     device: str | None = None
     dtype: str | None = None
     load_in_8bit: bool = False
