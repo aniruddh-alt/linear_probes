@@ -337,6 +337,7 @@ def main():
             dtype=args.dtype,
         )
         # Cache for reuse
+        act_path.mkdir(parents=True, exist_ok=True)
         torch.save(extraction, act_path / "extraction.pt")
         print(f"Saved extraction to {act_path / 'extraction.pt'}")
 
