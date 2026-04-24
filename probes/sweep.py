@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any
 
 import torch
-from sklearn.decomposition import PCA  # type: ignore[import-untyped, import-not-found]
 from torch.utils.data import DataLoader, Subset
 
 from activation.types import ExtractionResult
@@ -267,12 +266,15 @@ class LayerProbeSweepRunner:
         """Fit PCA on train split, transform all features in-place."""
         if dataset.sequence_mode:
             raise ValueError("PCA is not supported with sequence mode datasets.")
-        all_features = dataset.features.float().numpy()
+        all_features = dataset.features.float()
         train_features = all_features[train_indices]
-        pca = PCA(n_components=min(n_components, *train_features.shape))
-        pca.fit(train_features)
-        transformed = pca.transform(all_features)
-        dataset.features = torch.from_numpy(transformed).to(dataset.features.dtype)
+
+        k = min(n_components, *train_features.shape)
+        mean = train_features.mean(dim=0, keepdim=True)
+        _, _, V = torch.pca_lowrank(train_features - mean, q=k)
+
+        transformed = (all_features - mean) @ V
+        dataset.features = transformed.to(dataset.features.dtype)
         return dataset
 
     @staticmethod
