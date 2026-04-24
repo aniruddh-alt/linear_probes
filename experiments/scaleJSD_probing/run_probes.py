@@ -4,7 +4,7 @@ Tests the normative argument from "From Tokens to Semantics":
   - Frequency probes should peak early (layers encode frequency first)
   - Semantic probes should peak late (layers encode semantics later)
 
-Uses the linear_probes framework with binary classification:
+Uses the sonde toolkit with binary classification:
   - Frequency: high=1, low=0 (natural binary)
   - Semantic: one-vs-rest per domain (5 binary sweeps)
 
