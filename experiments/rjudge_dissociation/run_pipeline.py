@@ -133,6 +133,9 @@ def _parse_judge_labels(*, output_dir: Path) -> dict[str, int]:
     """Read labeled.jsonl and convert `safety_label` to the {0, 1, -1} predictions dict.
 
     Mapping: "safe" -> 0, "unsafe" -> 1, "unclear"/missing -> -1 (unparseable).
+
+    Note: oumi synth's postprocessing regex returns the full match (including the
+    "LABEL: " prefix), not the capture group. We strip that prefix here.
     """
     labeled_path = output_dir / "labeled.jsonl"
     predictions: dict[str, int] = {}
@@ -142,9 +145,11 @@ def _parse_judge_labels(*, output_dir: Path) -> dict[str, int]:
                 continue
             row = json.loads(line)
             label = (row.get("safety_label") or "").strip().lower()
-            if label == "unsafe":
+            if label.startswith("label:"):
+                label = label.split(":", 1)[1].strip()
+            if "unsafe" in label:
                 predictions[row["sample_id"]] = 1
-            elif label == "safe":
+            elif "safe" in label:
                 predictions[row["sample_id"]] = 0
             else:
                 predictions[row["sample_id"]] = -1

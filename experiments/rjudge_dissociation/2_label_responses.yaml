@@ -19,6 +19,7 @@
 #   usable sample size for the TP/FP/FN/TN partition.
 
 strategy: GENERAL
+num_samples: 571
 output_path: experiments/rjudge_dissociation/data/labeled.jsonl
 
 strategy_params:
