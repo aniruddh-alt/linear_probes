@@ -43,19 +43,27 @@ from generation.response_generator import ResponseGenerator
 DATA_DIR = Path("experiments/rjudge_dissociation/data")
 CAUSAL_DIR = DATA_DIR / "causal"
 MODEL_NAME = "meta-llama/Llama-3.1-8B-Instruct"
-STEER_LAYER = 15
+NUM_MODEL_LAYERS = 32  # Llama-3.1-8B has 32 decoder layers
+SINGLE_LAYER = 15
+ALL_LAYERS = list(range(NUM_MODEL_LAYERS))
 ALPHAS = [5.0, 10.0, 20.0]
 MAX_NEW_TOKENS = 256
 BATCH_SIZE = 2
 
-# Each sweep is: (cell, intervention_mode, alpha)
-SWEEPS: list[tuple[str, str, float]] = [
-    ("FN", "additive", alpha) for alpha in ALPHAS
-] + [
-    ("TP", "project_subtract", 1.0),  # alpha ignored for projection
-] + [
-    ("TN", "additive", alpha) for alpha in ALPHAS
-]
+# Each sweep: (cell, mode, alpha, layers_tag, layers_list)
+# layers_tag is a short label used in the sweep_id; layers_list is what gets passed to SteeringParams.
+SWEEPS: list[tuple[str, str, float, str, list[int]]] = (
+    # Phase 1 (already run): steering/ablation at a SINGLE layer (15).
+    # Phase 2 (new): all-layer directional ablation, Arditi-style.
+    [
+        # All-layer ablation on TP: does removing the direction across every layer
+        # now stop the model from flagging scenarios it correctly caught?
+        ("TP", "project_subtract", 1.0, "L_all", ALL_LAYERS),
+        # All-layer ablation on FP: does it stop Llama from flagging benign
+        # scenarios as unsafe? If yes, the direction drives the false-positive reflex.
+        ("FP", "project_subtract", 1.0, "L_all", ALL_LAYERS),
+    ]
+)
 
 
 def _extract_direction(best_probe_path: Path, save_path: Path) -> None:
@@ -96,6 +104,7 @@ def _run_one_sweep(
     scenarios: list[dict[str, Any]],
     mode: str,
     alpha: float,
+    layers: list[int],
     direction_path: Path,
     out_responses: Path,
 ) -> None:
@@ -106,7 +115,7 @@ def _run_one_sweep(
         if existing == len(scenarios):
             print(f"[causal] Skip {sweep_id}: {out_responses} has {existing} rows.")
             return
-    print(f"[causal] Sweep {sweep_id}: {mode} alpha={alpha} on {len(scenarios)} scenarios")
+    print(f"[causal] Sweep {sweep_id}: {mode} alpha={alpha} on {len(scenarios)} scenarios, layers={len(layers)} (first/last={layers[0]}..{layers[-1]})")
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
     chat_prompts = []
     for s in scenarios:
@@ -119,7 +128,7 @@ def _run_one_sweep(
         enabled=True,
         vector_path=str(direction_path),
         vector_key="direction",
-        layers=[STEER_LAYER],
+        layers=list(layers),
         strength=alpha,
         mode=mode,
         normalize=True,
@@ -298,12 +307,12 @@ def main() -> None:
 
     results: list[dict[str, Any]] = []
 
-    for cell, mode, alpha in SWEEPS:
+    for cell, mode, alpha, layers_tag, layers_list in SWEEPS:
         scenarios = by_cell[cell]
         if not scenarios:
-            print(f"[causal] Skipping {cell}/{mode}/a{alpha}: empty cell")
+            print(f"[causal] Skipping {cell}/{mode}/a{alpha}/{layers_tag}: empty cell")
             continue
-        sweep_id = f"{cell}_{mode}_a{alpha}"
+        sweep_id = f"{cell}_{mode}_a{alpha}_{layers_tag}"
         out_responses = CAUSAL_DIR / f"{sweep_id}_responses.jsonl"
         out_labeled = CAUSAL_DIR / f"{sweep_id}_labeled.jsonl"
 
@@ -312,6 +321,7 @@ def main() -> None:
             scenarios=scenarios,
             mode=mode,
             alpha=alpha,
+            layers=layers_list,
             direction_path=direction_path,
             out_responses=out_responses,
         )
@@ -327,6 +337,8 @@ def main() -> None:
             "cell": cell,
             "intervention_mode": mode,
             "alpha": alpha,
+            "layers_tag": layers_tag,
+            "n_layers": len(layers_list),
             "n_scenarios": total,
             "n_unsafe": unsafe,
             "n_safe": safe,
@@ -339,9 +351,8 @@ def main() -> None:
             f"safe={safe}, unclear={unclear}"
         )
 
-    out_json = DATA_DIR / "causal_results.json"
+    out_json = DATA_DIR / "causal_results_all_layers.json"
     out_json.write_text(json.dumps({
-        "layer": STEER_LAYER,
         "direction_source": str(direction_path),
         "baseline_cells": {cell: len(rows) for cell, rows in by_cell.items()},
         "sweeps": results,
