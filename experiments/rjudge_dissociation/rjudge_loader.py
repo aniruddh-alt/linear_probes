@@ -82,9 +82,9 @@ _CATEGORY_FILES: dict[str, tuple[str, ...]] = {
 def _fetch_json(url: str) -> list[dict[str, Any]]:
     """Download a JSON array from a URL. Raises RuntimeError on failure."""
     try:
-        with urllib.request.urlopen(url, timeout=30) as resp:  # noqa: S310 - trusted URL
+        with urllib.request.urlopen(url, timeout=30) as resp:
             data = json.loads(resp.read().decode("utf-8"))
-    except Exception as exc:  # noqa: BLE001 - re-wrapped with context below
+    except Exception as exc:
         raise RuntimeError(f"R-Judge fetch failed for {url}: {exc}") from exc
     if not isinstance(data, list):
         raise RuntimeError(f"R-Judge fetch for {url} returned non-list JSON.")

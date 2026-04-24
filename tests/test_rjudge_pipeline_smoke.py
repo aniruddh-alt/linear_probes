@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-import pytest
 import torch
 
 from experiments.rjudge_dissociation import run_pipeline

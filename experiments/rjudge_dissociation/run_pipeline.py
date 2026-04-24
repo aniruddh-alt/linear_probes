@@ -5,7 +5,7 @@ Loads `experiments/rjudge_dissociation/config.yaml`, runs:
   2. Behavioral judgment via ResponseGenerator (greedy, short)
   3. 4-cell classification (TP/FP/FN/TN)
   4. Activation extraction at last prompt token across multiple layers
-  5. Probe sweep trained on TP ∪ TN only
+  5. Probe sweep trained on TP U TN only
   6. Dissociation evaluation on FN cell
   7. Report + save results.json
 """
@@ -75,7 +75,7 @@ def _run_judgment(
     predictions: dict[str, int] = {}
     jsonl_path = output_dir / "judgments.jsonl"
     with jsonl_path.open("w", encoding="utf-8") as f:
-        for sid, prompt, response in zip(
+        for sid, _prompt, response in zip(
             result.sample_ids, result.prompts, result.responses, strict=True
         ):
             pred = parse_first_digit(response)
@@ -122,12 +122,12 @@ def _build_split_on_subset(
     split_cfg: dict[str, Any],
     seed: int,
 ) -> tuple[list[int], list[int], list[int], list[int], list[int]]:
-    """Build train/val/test indices over the TP ∪ TN subset.
+    """Build train/val/test indices over the TP U TN subset.
 
     Returns:
         train_rel, val_rel, test_rel: indices RELATIVE to tp_tn_indices
             (0..len(tp_tn_indices)-1). These are what the sweep runner consumes
-            after the extraction is subset to TP ∪ TN rows.
+            after the extraction is subset to TP U TN rows.
         fn_indices: ABSOLUTE indices into the full scenarios list, for the FN cell.
         tp_tn_indices: ABSOLUTE indices into the full scenarios list, used to
             subset the extraction before probe training.
@@ -158,7 +158,7 @@ def _subset_extraction(
 ) -> dict[str, Any]:
     """Return a new extraction dict with only the rows at the given absolute indices.
 
-    Used to filter the full extraction to TP ∪ TN rows before probe training,
+    Used to filter the full extraction to TP U TN rows before probe training,
     so the sweep runner's coverage check and control-sanity metrics see clean data.
     """
     activations = extraction["activations"]
@@ -282,7 +282,7 @@ def main(config_path: Path | None = None) -> None:
     print("[rjudge] Extracting activations (last prompt token, multi-layer)...")
     extraction = _run_extraction(scenarios=scenarios, cfg=cfg)
 
-    print("[rjudge] Building train/val/test split within TP ∪ TN...")
+    print("[rjudge] Building train/val/test split within TP U TN...")
     train_rel, val_rel, test_rel, fn_idx, tp_tn_idx = _build_split_on_subset(
         scenarios=scenarios,
         cells=cells_result["per_id"],
@@ -290,9 +290,9 @@ def main(config_path: Path | None = None) -> None:
         seed=cfg["seed"],
     )
     print(f"[rjudge] Split sizes: train={len(train_rel)}, val={len(val_rel)}, "
-          f"test={len(test_rel)}, TP∪TN={len(tp_tn_idx)}, FN(held-out)={len(fn_idx)}")
+          f"test={len(test_rel)}, TPUTN={len(tp_tn_idx)}, FN(held-out)={len(fn_idx)}")
 
-    # Filter extraction to TP ∪ TN rows so the sweep runner sees clean data
+    # Filter extraction to TP U TN rows so the sweep runner sees clean data
     # (full coverage, uncontaminated test metrics, honest control-sanity check).
     subset_extraction = _subset_extraction(extraction, tp_tn_idx)
     subset_labels = [scenarios[i]["label"] for i in tp_tn_idx]
