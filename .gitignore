@@ -64,3 +64,7 @@ checkpoints/
 # Optional files
 *.tmp
 *.bak
+*.egg-info
+
+# R-Judge dissociation experiment outputs
+experiments/rjudge_dissociation/data/
