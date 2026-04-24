@@ -72,10 +72,20 @@ _CATEGORY_FILES: dict[str, tuple[str, ...]] = {
         "chatbot.json", "dh_app.json", "ds_app.json", "mail.json",
         "medical.json", "phone.json", "productivity.json", "socialapp.json",
     ),
-    "Finance": ("finance.json",),
-    "IoT": ("iot.json",),
-    "Program": ("program.json",),
-    "Web": ("web.json",),
+    "Finance": (
+        "bitcoin.json", "dh_finance.json", "ds_finance.json",
+        "moneymanagement.json", "webshop.json",
+    ),
+    "IoT": (
+        "household.json", "phone_iot.json", "trafficdispatch.json",
+    ),
+    "Program": (
+        "code_agentmonitor.json", "dh_program.json", "ds_program.json",
+        "phone_program.json", "security.json", "software.json", "terminal.json",
+    ),
+    "Web": (
+        "dh_web.json", "ds_web.json", "webbrowser.json", "websearch.json",
+    ),
 }
 
 
