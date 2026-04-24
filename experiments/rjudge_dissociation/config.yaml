@@ -6,7 +6,7 @@ model:
   dtype: bfloat16
 
 judgment:
-  max_new_tokens: 8
+  max_new_tokens: 16
   batch_size: 2
   # temperature stays at 1.0 default; do_sample=False gives greedy decoding
 

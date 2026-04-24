@@ -56,12 +56,6 @@ def _run_judgment(
     judgment_cfg = cfg["judgment"]
     model_cfg = cfg["model"]
 
-    rows = [
-        {"id": s["id"], "text": s["formatted_prompt"], "label": s["label"]}
-        for s in scenarios
-    ]
-    bundle = ProbingSampleBuilder.from_iterable(rows).to_samples(text_key="text")
-
     generator = ResponseGenerator(
         model=ModelParams(model_name=model_cfg["model_name"], dtype=model_cfg.get("dtype")),
         generation=GenerationParams(
@@ -73,6 +67,18 @@ def _run_judgment(
     # ResponseGenerator does not auto-place the model on GPU; do it here.
     if torch.cuda.is_available():
         generator.model = generator.model.to("cuda")
+
+    # Instruct models need chat-template formatting; raw text bypasses instruction-following.
+    rows = []
+    for s in scenarios:
+        chat_prompt = generator.tokenizer.apply_chat_template(
+            [{"role": "user", "content": s["formatted_prompt"]}],
+            tokenize=False,
+            add_generation_prompt=True,
+        )
+        rows.append({"id": s["id"], "text": chat_prompt, "label": s["label"]})
+    bundle = ProbingSampleBuilder.from_iterable(rows).to_samples(text_key="text")
+
     result = generator.generate(bundle)
 
     predictions: dict[str, int] = {}
@@ -100,10 +106,18 @@ def _run_extraction(
     extraction_cfg = cfg["extraction"]
     model_cfg = cfg["model"]
 
-    rows = [
-        {"id": s["id"], "text": s["formatted_prompt"], "label": s["label"]}
-        for s in scenarios
-    ]
+    # Use the chat-template-formatted prompts to match what the judgment pass saw —
+    # activations must come from the exact input the model classified.
+    from transformers import AutoTokenizer
+    tokenizer = AutoTokenizer.from_pretrained(model_cfg["model_name"])
+    rows = []
+    for s in scenarios:
+        chat_prompt = tokenizer.apply_chat_template(
+            [{"role": "user", "content": s["formatted_prompt"]}],
+            tokenize=False,
+            add_generation_prompt=True,
+        )
+        rows.append({"id": s["id"], "text": chat_prompt, "label": s["label"]})
     bundle = ProbingSampleBuilder.from_iterable(rows).to_samples(text_key="text")
 
     extractor = ActivationExtractor(
