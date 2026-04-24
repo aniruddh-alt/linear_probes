@@ -3,15 +3,35 @@ from __future__ import annotations
 import torch
 from torch import nn
 
+from .base import BaseProbe
 
-class LinearProbe(nn.Module):
-    """Last-token linear probe. Takes last token from sequence, applies linear."""
 
-    def __init__(self, input_dim: int):
-        super().__init__()
-        self.linear = nn.Linear(input_dim, 1)
+class LinearProbe(BaseProbe):
+    """Fixed-position linear probe (default: last token).
 
-    def forward(self, x: torch.Tensor, mask: torch.Tensor | None = None) -> torch.Tensor:
-        if x.ndim == 3:
-            x = x[:, -1, :]
-        return self.linear(x)
+    6-stage decomposition:
+        transform: identity
+        score:     per-position linear readout (B, S, num_classes)
+        aggregate: pick a single position (default ``-1``)
+    """
+
+    def __init__(
+        self,
+        input_dim: int,
+        position: int = -1,
+        num_classes: int = 1,
+    ):
+        super().__init__(input_dim=input_dim, num_classes=num_classes)
+        self.linear = nn.Linear(input_dim, num_classes)
+        self.position = position
+
+    def score(self, h: torch.Tensor) -> torch.Tensor:
+        return self.linear(h)
+
+    def aggregate(
+        self,
+        scores: torch.Tensor,
+        h: torch.Tensor,
+        mask: torch.Tensor | None,
+    ) -> torch.Tensor:
+        return scores[:, self.position, :]

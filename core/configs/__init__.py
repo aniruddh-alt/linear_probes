@@ -14,6 +14,7 @@ from core.configs.params.probe_params import ProbeParams
 from core.configs.params.split_params import SplitParams
 from core.configs.params.steering_params import SteeringParams
 from core.configs.params.sweep_params import SweepParams
+from core.configs.params.token_selector_params import TokenSelectorParams
 from core.configs.pipeline_config import PipelineConfig
 from core.configs.probe_config import ProbeConfig
 
@@ -34,4 +35,5 @@ __all__ = [
     "SplitParams",
     "SteeringParams",
     "SweepParams",
+    "TokenSelectorParams",
 ]

@@ -8,6 +8,7 @@ from typing import Any
 from core.configs.base import BaseConfig
 
 
+# TODO: this structure is a bit overloaded, need to split this up further.
 @dataclass
 class ProbeParams(BaseConfig):
     """Training configuration for linear probes.

@@ -95,11 +95,8 @@ class LayerProbeSweepRunner:
             trainer = BinaryProbeTrainer(model=model, config=self.probe)
             history = trainer.fit(train_loader, val_loader=val_loader)
             val_metrics = trainer.evaluate(val_loader)
-            direction = self._normalized_direction(trainer)
-            bias: float | None = None
-            linear = getattr(trainer.model, 'linear', None)
-            if linear is not None and hasattr(linear, 'bias') and linear.bias is not None:
-                bias = float(linear.bias.detach().cpu().item())
+            direction = getattr(trainer.model, "direction", None)
+            bias = getattr(trainer.model, "bias", None)
             trained[key] = TrainedLayerProbe(
                 activation_key=key,
                 trainer=trainer,
@@ -276,17 +273,6 @@ class LayerProbeSweepRunner:
         transformed = (all_features - mean) @ V
         dataset.features = transformed.to(dataset.features.dtype)
         return dataset
-
-    @staticmethod
-    def _normalized_direction(trainer: BinaryProbeTrainer) -> torch.Tensor | None:
-        linear = getattr(trainer.model, 'linear', None)
-        if linear is None:
-            return None
-        weight = linear.weight.detach().cpu().reshape(-1).float()
-        norm = float(torch.linalg.vector_norm(weight).item())
-        if norm == 0.0:
-            return weight
-        return weight / norm
 
     def _select_best_layer(
         self, probes: dict[str, TrainedLayerProbe]
