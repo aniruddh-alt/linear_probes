@@ -56,7 +56,19 @@ def _run_response_generation(
     Unlike the legacy 1-token parse-first-digit path, this step keeps the model
     output at full length so a downstream LLM judge can infer the intended
     classification from verbose, preamble-heavy, or refusal-style responses.
+
+    Idempotent: if responses.jsonl already exists with the expected row count,
+    skip the regeneration (this step is the most expensive in the pipeline).
     """
+    responses_path = output_dir / "responses.jsonl"
+    if responses_path.exists():
+        with responses_path.open("r", encoding="utf-8") as f:
+            existing = sum(1 for line in f if line.strip())
+        if existing == len(scenarios):
+            print(f"[rjudge] Skipping response generation: {responses_path} already has {existing} rows.")
+            return
+        print(f"[rjudge] responses.jsonl has {existing} rows, expected {len(scenarios)}; regenerating.")
+
     judgment_cfg = cfg["judgment"]
     model_cfg = cfg["model"]
 
@@ -108,7 +120,22 @@ def _run_llm_judge(
 
     Reads: responses.jsonl (written by _run_response_generation).
     Writes: labeled.jsonl (each row gets a `safety_label` field in {unsafe, safe, unclear}).
+
+    Idempotent: if labeled.jsonl already exists with the same row count as
+    responses.jsonl, skip.
     """
+    labeled_path = output_dir / "labeled.jsonl"
+    responses_path = output_dir / "responses.jsonl"
+    if labeled_path.exists() and responses_path.exists():
+        with labeled_path.open("r", encoding="utf-8") as f:
+            labeled_rows = sum(1 for line in f if line.strip())
+        with responses_path.open("r", encoding="utf-8") as f:
+            response_rows = sum(1 for line in f if line.strip())
+        if labeled_rows == response_rows:
+            print(f"[rjudge] Skipping LLM judge: {labeled_path} already has {labeled_rows} rows.")
+            return
+        print(f"[rjudge] labeled.jsonl has {labeled_rows} rows, expected {response_rows}; re-running judge.")
+
     import shutil
     import subprocess
     oumi_bin = shutil.which("oumi")
