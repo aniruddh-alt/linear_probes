@@ -31,7 +31,6 @@ from dataset import ProbingSampleBuilder
 from dataset.probing_dataset import ProbingDataset
 from dataset.splitting import stratified_train_val_test_split
 from experiments.rjudge_dissociation.cells import classify_cells
-from experiments.rjudge_dissociation.judgment import parse_first_digit
 from experiments.rjudge_dissociation.metrics import (
     auroc_between_cells,
     classification_rate_at_threshold,
@@ -46,13 +45,18 @@ def _load_config(config_path: Path) -> dict[str, Any]:
     return OmegaConf.to_container(raw, resolve=True)  # type: ignore[return-value]
 
 
-def _run_judgment(
+def _run_response_generation(
     *,
     scenarios: list[dict[str, Any]],
     cfg: dict[str, Any],
     output_dir: Path,
-) -> dict[str, int]:
-    """Generate 1-token judgments and parse 0/1. Writes judgments.jsonl."""
+) -> None:
+    """Generate full responses from the subject model. Writes responses.jsonl.
+
+    Unlike the legacy 1-token parse-first-digit path, this step keeps the model
+    output at full length so a downstream LLM judge can infer the intended
+    classification from verbose, preamble-heavy, or refusal-style responses.
+    """
     judgment_cfg = cfg["judgment"]
     model_cfg = cfg["model"]
 
@@ -81,19 +85,69 @@ def _run_judgment(
 
     result = generator.generate(bundle)
 
-    predictions: dict[str, int] = {}
-    jsonl_path = output_dir / "judgments.jsonl"
-    with jsonl_path.open("w", encoding="utf-8") as f:
-        for sid, _prompt, response in zip(
-            result.sample_ids, result.prompts, result.responses, strict=True
-        ):
-            pred = parse_first_digit(response)
-            predictions[sid] = pred if pred is not None else -1
+    id_to_scenario = {s["id"]: s for s in scenarios}
+    responses_path = output_dir / "responses.jsonl"
+    with responses_path.open("w", encoding="utf-8") as f:
+        for sid, response in zip(result.sample_ids, result.responses, strict=True):
+            scenario = id_to_scenario[sid]
             f.write(json.dumps({
-                "id": sid,
-                "raw_output": response,
-                "predicted_label": predictions[sid],
+                "sample_id": sid,
+                "original_prompt": scenario["formatted_prompt"],
+                "original_response": response,
+                "ground_truth_label": scenario["label"],
+                "category": scenario["category"],
             }) + "\n")
+
+
+def _run_llm_judge(
+    *,
+    output_dir: Path,
+    synth_config_path: Path,
+) -> None:
+    """Invoke `oumi synth` to label responses.jsonl with LLM-as-judge.
+
+    Reads: responses.jsonl (written by _run_response_generation).
+    Writes: labeled.jsonl (each row gets a `safety_label` field in {unsafe, safe, unclear}).
+    """
+    import shutil
+    import subprocess
+    oumi_bin = shutil.which("oumi")
+    if oumi_bin is None:
+        raise RuntimeError(
+            "The 'oumi' CLI was not found. Install oumi[synth] and ensure it is on PATH."
+        )
+    cmd = [oumi_bin, "synth", "-c", str(synth_config_path)]
+    print(f"[rjudge] Running: {' '.join(cmd)}")
+    result = subprocess.run(cmd, capture_output=False)
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"oumi synth failed with exit code {result.returncode}. "
+            "Check that ANTHROPIC_API_KEY is set and responses.jsonl exists."
+        )
+    labeled_path = output_dir / "labeled.jsonl"
+    if not labeled_path.exists():
+        raise RuntimeError(f"oumi synth did not produce {labeled_path}.")
+
+
+def _parse_judge_labels(*, output_dir: Path) -> dict[str, int]:
+    """Read labeled.jsonl and convert `safety_label` to the {0, 1, -1} predictions dict.
+
+    Mapping: "safe" -> 0, "unsafe" -> 1, "unclear"/missing -> -1 (unparseable).
+    """
+    labeled_path = output_dir / "labeled.jsonl"
+    predictions: dict[str, int] = {}
+    with labeled_path.open("r", encoding="utf-8") as f:
+        for line in f:
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            label = (row.get("safety_label") or "").strip().lower()
+            if label == "unsafe":
+                predictions[row["sample_id"]] = 1
+            elif label == "safe":
+                predictions[row["sample_id"]] = 0
+            else:
+                predictions[row["sample_id"]] = -1
     return predictions
 
 
@@ -282,8 +336,13 @@ def main(config_path: Path | None = None) -> None:
           f"({sum(labels_by_id.values())} risky, "
           f"{len(scenarios) - sum(labels_by_id.values())} safe)")
 
-    print("[rjudge] Running behavioral judgment pass...")
-    predictions = _run_judgment(scenarios=scenarios, cfg=cfg, output_dir=output_dir)
+    print("[rjudge] Generating subject-model responses...")
+    _run_response_generation(scenarios=scenarios, cfg=cfg, output_dir=output_dir)
+
+    synth_config_path = Path(__file__).parent / "2_label_responses.yaml"
+    print("[rjudge] Running LLM-as-judge labeling via oumi synth...")
+    _run_llm_judge(output_dir=output_dir, synth_config_path=synth_config_path)
+    predictions = _parse_judge_labels(output_dir=output_dir)
 
     print("[rjudge] Classifying TP/FP/FN/TN cells...")
     cells_result = classify_cells(labels=labels_by_id, predictions=predictions)

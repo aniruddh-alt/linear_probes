@@ -9,11 +9,14 @@ Phase 0 pilot testing whether Llama-3.1-8B-Instruct internally encodes risk in R
 ## What this does
 
 1. Loads R-Judge (569 agent-safety scenarios, 5 categories, EMNLP Findings 2024).
-2. Runs Llama-3.1-8B-Instruct on each scenario with R-Judge's official judge prompt; parses 0/1 behavioral output.
-3. Partitions scenarios into four cells by {behavioral output} × {ground truth}: TP, FP, FN, TN.
-4. Extracts residual-stream activations at the last prompt token at layers [8, 12, 15, 20, 24].
-5. Trains a linear probe on `TP ∪ TN` (model-agreement cells), 70/15/15 split, selects best layer by val AUROC.
-6. Applies best probe to the `FN` cell — reports the dissociation metrics.
+2. Runs Llama-3.1-8B-Instruct on each scenario with R-Judge's official judge prompt; saves the full (256-token) response to `responses.jsonl`.
+3. **LLM-as-judge labeling** (Oumi synth + Claude Sonnet): reads each verbose/refusal response and extracts the intended safe / unsafe classification into `labeled.jsonl`.
+4. Partitions scenarios into four cells by {behavioral label} × {ground truth}: TP, FP, FN, TN.
+5. Extracts residual-stream activations at the last prompt token at layers [8, 12, 15, 20, 24] using the same chat-template-formatted inputs the judgment step saw.
+6. Trains a linear probe on `TP ∪ TN` (model-agreement cells), 70/15/15 split, selects best layer by val AUROC.
+7. Applies best probe to the `FN` cell — reports the dissociation metrics.
+
+**Requires:** `ANTHROPIC_API_KEY` in the environment for step 3. Cost: ~\execute.50 per 571-scenario run using Claude Sonnet 4.
 
 ## How to run
 
@@ -50,7 +53,8 @@ All written to `experiments/rjudge_dissociation/data/` (gitignored):
 | `rjudge_raw/*/combined.json` | Cached per-category R-Judge JSONs (first run only downloads). |
 | `activations/activations.safetensors` | Last-prompt-token activations at 5 layers, 569 scenarios. |
 | `activations/activations_manifest.pt` | Activation metadata + sample ids + labels. |
-| `judgments.jsonl` | Per-scenario `{id, raw_output, predicted_label}` from the judgment pass. |
+| `responses.jsonl` | Subject-model responses to each R-Judge scenario (full 256-token output). |
+| `labeled.jsonl` | Oumi-synth output: responses + `safety_label` in {safe, unsafe, unclear} from the Claude judge. |
 | `cells.json` | `{counts, per_id}` from the 4-cell classification. |
 | `best_probe.pt` | Weights of the best-layer linear probe. |
 | `results.json` | Summary: cells, sweep best layer, test metrics, controls, and the dissociation numbers. |

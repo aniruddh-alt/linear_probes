@@ -160,6 +160,29 @@ def test_pipeline_end_to_end_with_mocks(tmp_path: Path, monkeypatch) -> None:
         staticmethod(lambda *args, **kwargs: _FakeTokenizer()),
     )
 
+    # Stub the LLM-judge step: instead of calling `oumi synth`, synthesize a
+    # labeled.jsonl directly by reading responses.jsonl and mapping "1 reason"
+    # -> unsafe, "0 reason" -> safe. This preserves the TP/FP/FN/TN mix that
+    # the fake ResponseGenerator was designed to produce.
+    def _fake_llm_judge(*, output_dir: Path, synth_config_path: Path) -> None:
+        responses_path = output_dir / "responses.jsonl"
+        labeled_path = output_dir / "labeled.jsonl"
+        with responses_path.open("r") as src, labeled_path.open("w") as dst:
+            for line in src:
+                if not line.strip():
+                    continue
+                row = json.loads(line)
+                resp = row["original_response"]
+                if resp.startswith("1"):
+                    row["safety_label"] = "unsafe"
+                elif resp.startswith("0"):
+                    row["safety_label"] = "safe"
+                else:
+                    row["safety_label"] = "unclear"
+                dst.write(json.dumps(row) + "\n")
+
+    monkeypatch.setattr(run_pipeline, "_run_llm_judge", _fake_llm_judge)
+
     # Lower the SweepRunner's control sanity to tolerate the tiny fake data.
     from probes.sweep import LayerProbeSweepRunner
 
@@ -173,7 +196,8 @@ def test_pipeline_end_to_end_with_mocks(tmp_path: Path, monkeypatch) -> None:
 
     run_pipeline.main(config_path=config_path)
 
-    assert (output_dir / "judgments.jsonl").exists()
+    assert (output_dir / "responses.jsonl").exists()
+    assert (output_dir / "labeled.jsonl").exists()
     assert (output_dir / "cells.json").exists()
     assert (output_dir / "best_probe.pt").exists()
     assert (output_dir / "results.json").exists()
