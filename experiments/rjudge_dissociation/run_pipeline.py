@@ -121,16 +121,16 @@ def _build_split_on_subset(
     cells: dict[str, str],
     split_cfg: dict[str, Any],
     seed: int,
-) -> tuple[list[int], list[int], list[int], list[int]]:
-    """Build train/val/test indices over TP ∪ TN rows only.
+) -> tuple[list[int], list[int], list[int], list[int], list[int]]:
+    """Build train/val/test indices over the TP ∪ TN subset.
 
-    Returns absolute indices into the scenarios list.
-    FN indices are returned separately for dissociation evaluation.
-
-    FN and FP rows are appended to the test split so that the sweep runner
-    receives full coverage (it requires all N indices to be accounted for).
-    The dissociation analysis re-scores all samples independently, so the
-    presence of FN/FP in the test slot does not affect probe training.
+    Returns:
+        train_rel, val_rel, test_rel: indices RELATIVE to tp_tn_indices
+            (0..len(tp_tn_indices)-1). These are what the sweep runner consumes
+            after the extraction is subset to TP ∪ TN rows.
+        fn_indices: ABSOLUTE indices into the full scenarios list, for the FN cell.
+        tp_tn_indices: ABSOLUTE indices into the full scenarios list, used to
+            subset the extraction before probe training.
     """
     tp_tn_indices = [
         i for i, s in enumerate(scenarios)
@@ -139,14 +139,6 @@ def _build_split_on_subset(
     fn_indices = [
         i for i, s in enumerate(scenarios)
         if cells.get(s["id"]) == "FN"
-    ]
-    fp_indices = [
-        i for i, s in enumerate(scenarios)
-        if cells.get(s["id"]) == "FP"
-    ]
-    other_indices = [
-        i for i, s in enumerate(scenarios)
-        if cells.get(s["id"]) not in ("TP", "TN", "FN", "FP")
     ]
     labels_subset = [scenarios[i]["label"] for i in tp_tn_indices]
 
@@ -157,13 +149,35 @@ def _build_split_on_subset(
         test_fraction=split_cfg["test_fraction"],
         seed=seed,
     )
-    # Remap relative-to-subset indices back to absolute indices in scenarios.
-    train_abs = [tp_tn_indices[i] for i in train_rel]
-    val_abs = [tp_tn_indices[i] for i in val_rel]
-    # FN, FP, and any unparseable rows are appended to the test split so the
-    # sweep runner's coverage check passes (train ∪ val ∪ test == all N rows).
-    test_abs = [tp_tn_indices[i] for i in test_rel] + fn_indices + fp_indices + other_indices
-    return train_abs, val_abs, test_abs, fn_indices
+    return train_rel, val_rel, test_rel, fn_indices, tp_tn_indices
+
+
+def _subset_extraction(
+    extraction: dict[str, Any],
+    indices: list[int],
+) -> dict[str, Any]:
+    """Return a new extraction dict with only the rows at the given absolute indices.
+
+    Used to filter the full extraction to TP ∪ TN rows before probe training,
+    so the sweep runner's coverage check and control-sanity metrics see clean data.
+    """
+    activations = extraction["activations"]
+    subset_acts: dict[str, Any] = {}
+    for key, value in activations.items():
+        if isinstance(value, list):
+            subset_acts[key] = [value[i] for i in indices]
+        else:
+            subset_acts[key] = value[indices]
+    sample_ids = extraction.get("sample_ids", [])
+    subset_sample_ids = [sample_ids[i] for i in indices] if sample_ids else []
+    labels = extraction.get("labels", [])
+    subset_labels = [labels[i] for i in indices] if labels else []
+    return {
+        **extraction,
+        "activations": subset_acts,
+        "sample_ids": subset_sample_ids,
+        "labels": subset_labels,
+    }
 
 
 def _evaluate_dissociation(
@@ -269,14 +283,19 @@ def main(config_path: Path | None = None) -> None:
     extraction = _run_extraction(scenarios=scenarios, cfg=cfg)
 
     print("[rjudge] Building train/val/test split within TP ∪ TN...")
-    train_idx, val_idx, test_idx, fn_idx = _build_split_on_subset(
+    train_rel, val_rel, test_rel, fn_idx, tp_tn_idx = _build_split_on_subset(
         scenarios=scenarios,
         cells=cells_result["per_id"],
         split_cfg=cfg["split"],
         seed=cfg["seed"],
     )
-    print(f"[rjudge] Split sizes: train={len(train_idx)}, val={len(val_idx)}, "
-          f"test={len(test_idx)}, FN(held-out)={len(fn_idx)}")
+    print(f"[rjudge] Split sizes: train={len(train_rel)}, val={len(val_rel)}, "
+          f"test={len(test_rel)}, TP∪TN={len(tp_tn_idx)}, FN(held-out)={len(fn_idx)}")
+
+    # Filter extraction to TP ∪ TN rows so the sweep runner sees clean data
+    # (full coverage, uncontaminated test metrics, honest control-sanity check).
+    subset_extraction = _subset_extraction(extraction, tp_tn_idx)
+    subset_labels = [scenarios[i]["label"] for i in tp_tn_idx]
 
     probe_cfg = cfg["probe"]
     sweep_cfg = cfg["sweep"]
@@ -297,11 +316,11 @@ def main(config_path: Path | None = None) -> None:
         ),
     )
     sweep_result = runner.run(
-        extraction,
-        train_indices=train_idx,
-        val_indices=val_idx,
-        test_indices=test_idx,
-        labels=[s["label"] for s in scenarios],
+        subset_extraction,
+        train_indices=train_rel,
+        val_indices=val_rel,
+        test_indices=test_rel,
+        labels=subset_labels,
     )
 
     best_probe = sweep_result.probes[sweep_result.best_key]
