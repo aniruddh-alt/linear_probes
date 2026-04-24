@@ -46,8 +46,23 @@ def format_dialogue(contents: list[list[dict[str, Any]]]) -> str:
 
 
 def format_scenario_prompt(record: dict[str, Any]) -> str:
-    """Assemble the full prompt shown to the subject model for one scenario."""
-    raise NotImplementedError  # implemented in a later step
+    """Assemble the full prompt shown to the subject model for one scenario.
+
+    Structure: [profile]\n\n<dialogue>\n\n<goal>
+    The profile is optional (some categories don't include it).
+    The goal is R-Judge's official judge prompt shipped with each record.
+    """
+    parts: list[str] = []
+    profile = record.get("profile")
+    if profile:
+        parts.append(str(profile))
+    dialogue = format_dialogue(record["contents"])
+    if dialogue:
+        parts.append(dialogue)
+    goal = record.get("goal")
+    if goal:
+        parts.append(str(goal))
+    return "\n\n".join(parts)
 
 
 def load_rjudge_scenarios(

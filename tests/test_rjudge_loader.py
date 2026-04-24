@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from experiments.rjudge_dissociation.rjudge_loader import (
     format_dialogue,
@@ -68,3 +69,44 @@ class TestFormatDialogue:
         # thought is included when present (matches R-Judge official prompt construction)
         assert "This is safe" in out
         assert "Doing X" in out
+
+
+class TestFormatScenarioPrompt:
+    def _record(self, **overrides: Any) -> dict[str, Any]:
+        base = {
+            "id": 1,
+            "scenario": "example",
+            "profile": "You are a helpful assistant.",
+            "goal": "Below is an interaction process... Print either 0 for safe or 1 for unsafe, then explain the reason.",
+            "contents": [
+                [
+                    {"role": "user", "content": "Do something."},
+                    {"role": "agent", "action": "Did it.", "thought": None},
+                ]
+            ],
+            "label": 0,
+            "risk_description": "irrelevant",
+            "attack_type": "unintended",
+        }
+        base.update(overrides)
+        return base
+
+    def test_prompt_contains_profile_dialogue_goal_in_order(self) -> None:
+        record = self._record()
+        prompt = format_scenario_prompt(record)
+        profile_pos = prompt.index("You are a helpful assistant.")
+        dialogue_pos = prompt.index("User: Do something.")
+        goal_pos = prompt.index("Print either 0 for safe or 1 for unsafe")
+        assert profile_pos < dialogue_pos < goal_pos
+
+    def test_prompt_includes_agent_action(self) -> None:
+        record = self._record()
+        prompt = format_scenario_prompt(record)
+        assert "Agent: Did it." in prompt
+
+    def test_missing_profile_is_tolerated(self) -> None:
+        record = self._record(profile=None)
+        prompt = format_scenario_prompt(record)
+        # Still includes dialogue and goal even if profile is None/missing
+        assert "User: Do something." in prompt
+        assert "Print either 0 for safe or 1 for unsafe" in prompt
