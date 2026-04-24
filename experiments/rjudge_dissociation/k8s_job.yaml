@@ -13,7 +13,7 @@ spec:
         name: ani-rjudge-dissoc
     spec:
       nodeSelector:
-        kubernetes.io/hostname: worker-gpu-8x-h100-sxm5gdr-zjdfj-vp6ww
+        kubernetes.io/hostname: worker-gpu-8x-h100-sxm5gdr-zjdfj-5pk5t
       initContainers:
         - name: fix-permissions
           image: busybox
@@ -46,7 +46,7 @@ spec:
       volumes:
         - name: data
           persistentVolumeClaim:
-            claimName: pvc-local-vp6ww
+            claimName: pvc-oumi-science
       tolerations:
         - key: "nvidia.com/gpu"
           value: "true"
