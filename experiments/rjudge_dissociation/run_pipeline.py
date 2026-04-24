@@ -124,8 +124,13 @@ def _build_split_on_subset(
 ) -> tuple[list[int], list[int], list[int], list[int]]:
     """Build train/val/test indices over TP ∪ TN rows only.
 
-    Returns indices into the scenarios list (not into a subset).
+    Returns absolute indices into the scenarios list.
     FN indices are returned separately for dissociation evaluation.
+
+    FN and FP rows are appended to the test split so that the sweep runner
+    receives full coverage (it requires all N indices to be accounted for).
+    The dissociation analysis re-scores all samples independently, so the
+    presence of FN/FP in the test slot does not affect probe training.
     """
     tp_tn_indices = [
         i for i, s in enumerate(scenarios)
@@ -134,6 +139,14 @@ def _build_split_on_subset(
     fn_indices = [
         i for i, s in enumerate(scenarios)
         if cells.get(s["id"]) == "FN"
+    ]
+    fp_indices = [
+        i for i, s in enumerate(scenarios)
+        if cells.get(s["id"]) == "FP"
+    ]
+    other_indices = [
+        i for i, s in enumerate(scenarios)
+        if cells.get(s["id"]) not in ("TP", "TN", "FN", "FP")
     ]
     labels_subset = [scenarios[i]["label"] for i in tp_tn_indices]
 
@@ -147,7 +160,9 @@ def _build_split_on_subset(
     # Remap relative-to-subset indices back to absolute indices in scenarios.
     train_abs = [tp_tn_indices[i] for i in train_rel]
     val_abs = [tp_tn_indices[i] for i in val_rel]
-    test_abs = [tp_tn_indices[i] for i in test_rel]
+    # FN, FP, and any unparseable rows are appended to the test split so the
+    # sweep runner's coverage check passes (train ∪ val ∪ test == all N rows).
+    test_abs = [tp_tn_indices[i] for i in test_rel] + fn_indices + fp_indices + other_indices
     return train_abs, val_abs, test_abs, fn_indices
 
 
