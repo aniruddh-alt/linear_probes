@@ -70,6 +70,9 @@ def _run_judgment(
             do_sample=False,  # greedy
         ),
     )
+    # ResponseGenerator does not auto-place the model on GPU; do it here.
+    if torch.cuda.is_available():
+        generator.model = generator.model.to("cuda")
     result = generator.generate(bundle)
 
     predictions: dict[str, int] = {}
