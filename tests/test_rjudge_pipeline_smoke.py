@@ -93,9 +93,18 @@ def test_pipeline_end_to_end_with_mocks(tmp_path: Path, monkeypatch) -> None:
 
     # Mock ResponseGenerator: make the model "get half right and half wrong"
     # to produce a non-empty FN cell.
+    class _FakeTokenizer:
+        def apply_chat_template(self, messages, tokenize=False, add_generation_prompt=True):
+            return messages[0]["content"]
+
+    class _FakeModel:
+        def to(self, device):
+            return self
+
     class _FakeResponseGenerator:
         def __init__(self, **kwargs: Any) -> None:
-            pass
+            self.tokenizer = _FakeTokenizer()
+            self.model = _FakeModel()
 
         def generate(self, bundle: Any) -> Any:
             from generation.types import GenerationResult
@@ -142,6 +151,14 @@ def test_pipeline_end_to_end_with_mocks(tmp_path: Path, monkeypatch) -> None:
 
     monkeypatch.setattr(run_pipeline, "ResponseGenerator", _FakeResponseGenerator)
     monkeypatch.setattr(run_pipeline, "ActivationExtractor", _FakeExtractor)
+
+    # _run_extraction imports AutoTokenizer inside the function; patch at source.
+    import transformers
+    monkeypatch.setattr(
+        transformers.AutoTokenizer,
+        "from_pretrained",
+        staticmethod(lambda *args, **kwargs: _FakeTokenizer()),
+    )
 
     # Lower the SweepRunner's control sanity to tolerate the tiny fake data.
     from probes.sweep import LayerProbeSweepRunner
