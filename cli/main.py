@@ -9,9 +9,9 @@ import sys
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="interp",
-        description="Interpretability toolkit — activation extraction, probing, and analysis.",
-        usage="interp <config.yaml> [-o key=val ...]\n       interp run -c <config.yaml> [-o key=val ...]",
+        prog="sonde",
+        description="sonde — a mech interp toolkit for activation extraction and linear probing.",
+        usage="sonde <config.yaml> [-o key=val ...]\n       sonde run -c <config.yaml> [-o key=val ...]",
     )
     parser.add_argument(
         "config", help="Path to YAML config file"
