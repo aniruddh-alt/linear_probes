@@ -1,7 +1,7 @@
 [project]
-name = "linear-probes"
+name = "sonde"
 version = "0.1.0"
-description = "Mechanistic interpretability toolkit for activation extraction and probing."
+description = "A slender probe for the hidden layers of large models — a mech interp toolkit for activation extraction and linear probing."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -24,7 +24,7 @@ dev = [
 ]
 
 [project.scripts]
-interp = "cli.main:entrypoint"
+sonde = "cli.main:entrypoint"
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]
