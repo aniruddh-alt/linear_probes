@@ -13,9 +13,7 @@ def build_parser() -> argparse.ArgumentParser:
         description="sonde — a mech interp toolkit for activation extraction and linear probing.",
         usage="sonde <config.yaml> [-o key=val ...]\n       sonde run -c <config.yaml> [-o key=val ...]",
     )
-    parser.add_argument(
-        "config", help="Path to YAML config file"
-    )
+    parser.add_argument("config", help="Path to YAML config file")
     parser.add_argument(
         "-o",
         "--override",
@@ -30,7 +28,10 @@ def _parse_overrides(raw_overrides: list[str]) -> dict[str, str]:
     overrides: dict[str, str] = {}
     for item in raw_overrides:
         if "=" not in item:
-            print(f"Warning: ignoring malformed override '{item}' (missing '=')", file=sys.stderr)
+            print(
+                f"Warning: ignoring malformed override '{item}' (missing '=')",
+                file=sys.stderr,
+            )
             continue
         key, _, value = item.partition("=")
         overrides[key.strip()] = value.strip()

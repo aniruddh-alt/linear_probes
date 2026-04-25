@@ -27,7 +27,11 @@ FORCED_PREFIX = "Sure, here is"
 
 def _load_harmful(limit: int) -> list[str]:
     ds = load_dataset("walledai/AdvBench", split="train")
-    out = [cast(dict[str, Any], row)["goal"] for row in ds if cast(dict[str, Any], row).get("goal", "").strip()][:limit]
+    out = [
+        cast(dict[str, Any], row)["goal"]
+        for row in ds
+        if cast(dict[str, Any], row).get("goal", "").strip()
+    ][:limit]
     if len(out) < limit:
         raise ValueError(f"AdvBench yielded only {len(out)}/{limit} rows.")
     return out
@@ -35,7 +39,11 @@ def _load_harmful(limit: int) -> list[str]:
 
 def _load_harmless(limit: int) -> list[str]:
     ds = load_dataset("tatsu-lab/alpaca", split="train")
-    out = [cast(dict[str, Any], row)["instruction"] for row in ds if cast(dict[str, Any], row).get("instruction", "").strip()][:limit]
+    out = [
+        cast(dict[str, Any], row)["instruction"]
+        for row in ds
+        if cast(dict[str, Any], row).get("instruction", "").strip()
+    ][:limit]
     if len(out) < limit:
         raise ValueError(f"Alpaca yielded only {len(out)}/{limit} rows.")
     return out
@@ -64,8 +72,11 @@ def main() -> None:
     bundle = ProbingSampleBuilder.from_iterable(records).to_samples(text_key="text")
     labels = [int(label) for label in bundle.labels if label is not None]
     train_idx, val_idx, test_idx = bundle.train_val_test_split(
-        train_fraction=0.7, val_fraction=0.15, test_fraction=0.15,
-        seed=SEED, group_ids=bundle.ids,
+        train_fraction=0.7,
+        val_fraction=0.15,
+        test_fraction=0.15,
+        seed=SEED,
+        group_ids=bundle.ids,
     )
 
     # 2. Resolve token position for forced-prefix boundary
@@ -88,13 +99,18 @@ def main() -> None:
 
     # 4. Train probes across layers
     runner = LayerProbeSweepRunner(
-        probe=ProbeParams(epochs=10, learning_rate=1e-3, seed=SEED, bootstrap_samples=200),
+        probe=ProbeParams(
+            epochs=10, learning_rate=1e-3, seed=SEED, bootstrap_samples=200
+        ),
         sweep=SweepParams(activation_targets=targets, batch_size=BATCH_SIZE),
     )
     result = runner.run(
         extraction,
-        train_indices=train_idx, val_indices=val_idx, test_indices=test_idx,
-        labels=labels, group_ids=bundle.ids,
+        train_indices=train_idx,
+        val_indices=val_idx,
+        test_indices=test_idx,
+        labels=labels,
+        group_ids=bundle.ids,
     )
 
     # 5. Report

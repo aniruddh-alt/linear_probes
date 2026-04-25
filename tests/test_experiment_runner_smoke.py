@@ -1,4 +1,5 @@
 """Smoke tests for the experiment runner API."""
+
 from __future__ import annotations
 
 import pytest
@@ -25,8 +26,7 @@ class TestExperimentRunner:
     def test_load_generate_config_from_yaml(self, tmp_path):
         config_path = tmp_path / "gen.yaml"
         config_path.write_text(
-            "run_name: gen\naction: generate\n"
-            "model:\n  model_name: test-model\n",
+            "run_name: gen\naction: generate\nmodel:\n  model_name: test-model\n",
             encoding="utf-8",
         )
         cfg = load_run_config(config_path)
@@ -36,8 +36,7 @@ class TestExperimentRunner:
     def test_load_extract_config_from_yaml(self, tmp_path):
         config_path = tmp_path / "ext.yaml"
         config_path.write_text(
-            "run_name: ext\naction: extract\n"
-            "model:\n  model_name: test-model\n",
+            "run_name: ext\naction: extract\nmodel:\n  model_name: test-model\n",
             encoding="utf-8",
         )
         cfg = load_run_config(config_path)
@@ -46,8 +45,7 @@ class TestExperimentRunner:
     def test_load_config_with_overrides(self, tmp_path):
         config_path = tmp_path / "run.yaml"
         config_path.write_text(
-            "run_name: base\naction: probe_sweep\n"
-            "probe:\n  learning_rate: 0.01\n",
+            "run_name: base\naction: probe_sweep\nprobe:\n  learning_rate: 0.01\n",
             encoding="utf-8",
         )
         cfg = load_run_config(config_path, overrides={"probe.learning_rate": "0.001"})
@@ -60,7 +58,9 @@ class TestExperimentRunner:
             "run_name: smoke\naction: probe_sweep\n",
             encoding="utf-8",
         )
-        with pytest.raises(NotImplementedError, match="probe_sweep action not yet wired"):
+        with pytest.raises(
+            NotImplementedError, match="probe_sweep action not yet wired"
+        ):
             run_experiment(config_path=config_path, overrides={})
 
     def test_run_experiment_unknown_action_raises(self, tmp_path):
@@ -74,13 +74,17 @@ class TestExperimentRunner:
 
     def test_run_experiment_with_alias(self, tmp_path):
         aliases_file = tmp_path / "aliases.yaml"
-        aliases_file.write_text("quick: " + str(tmp_path / "quick.yaml") + "\n", encoding="utf-8")
+        aliases_file.write_text(
+            "quick: " + str(tmp_path / "quick.yaml") + "\n", encoding="utf-8"
+        )
         config_file = tmp_path / "quick.yaml"
         config_file.write_text(
             "run_name: aliased\naction: probe_sweep\n",
             encoding="utf-8",
         )
-        with pytest.raises(NotImplementedError, match="probe_sweep action not yet wired"):
+        with pytest.raises(
+            NotImplementedError, match="probe_sweep action not yet wired"
+        ):
             run_experiment(config_path="quick", aliases_path=aliases_file)
 
     def test_generate_action_requires_input_path(self, tmp_path):

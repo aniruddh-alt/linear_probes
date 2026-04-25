@@ -58,8 +58,7 @@ class TokenSelector(Protocol):
         kind: str,
         input_ids: torch.Tensor | None = None,
         attention_mask: torch.Tensor | None = None,
-    ) -> tuple[torch.Tensor, torch.Tensor | None]:
-        ...
+    ) -> tuple[torch.Tensor, torch.Tensor | None]: ...
 
 
 # ────────────────────────────── Helpers ──────────────────────────────
@@ -180,9 +179,7 @@ class IndexList:
     ) -> tuple[torch.Tensor, torch.Tensor | None]:
         _ensure_3d(activation, kind, "IndexList")
         seq_len = activation.shape[1]
-        resolved = [
-            _resolve_index(i, seq_len, where="IndexList") for i in self.indices
-        ]
+        resolved = [_resolve_index(i, seq_len, where="IndexList") for i in self.indices]
         idx = torch.tensor(resolved, device=activation.device, dtype=torch.long)
         gathered = activation.index_select(dim=1, index=idx)
         sub_mask: torch.Tensor | None = None
@@ -226,7 +223,9 @@ class LastNonPad:
             )
         lengths = mask.long().sum(dim=1)
         if (lengths == 0).any():
-            raise ValueError("LastNonPad: every row must have at least one non-pad position.")
+            raise ValueError(
+                "LastNonPad: every row must have at least one non-pad position."
+            )
         last_idx = (lengths - 1).clamp(min=0)
         gather_idx = last_idx.view(-1, 1, 1).expand(-1, 1, activation.shape[-1])
         gathered = activation.gather(dim=1, index=gather_idx).squeeze(1)
@@ -349,9 +348,7 @@ class StringAnchor(TokenIdAnchor):
             raise ValueError(
                 "StringAnchor requires a tokenizer with an `encode` method."
             )
-        pattern = list(
-            tokenizer.encode(anchor, add_special_tokens=add_special_tokens)
-        )
+        pattern = list(tokenizer.encode(anchor, add_special_tokens=add_special_tokens))
         super().__init__(pattern=pattern, offset=offset, mode=mode)
         self.anchor = anchor
 

@@ -35,7 +35,9 @@ class SampleBundle:
         from dataset.splitting import stratified_train_val_test_split
 
         if not self.labels:
-            raise ValueError("No labels in SampleBundle; cannot create train/val/test split.")
+            raise ValueError(
+                "No labels in SampleBundle; cannot create train/val/test split."
+            )
         if any(label is None for label in self.labels):
             raise ValueError(
                 "SampleBundle has unlabeled rows. Add binary labels before splitting."

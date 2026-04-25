@@ -18,14 +18,16 @@ from core.configs.params.extraction_params import ExtractionParams
 from core.configs.pipeline_config import PipelineConfig
 from core.configs.probe_config import ProbeConfig
 
-StageConfig = GenerateConfig | ExtractConfig | ProbeConfig | DiffMeansConfig | PipelineConfig
+StageConfig = (
+    GenerateConfig | ExtractConfig | ProbeConfig | DiffMeansConfig | PipelineConfig
+)
 
 STAGE_CONFIG_MAP: dict[str, type[BaseConfig]] = {
-    "generate":    GenerateConfig,
-    "extract":     ExtractConfig,
+    "generate": GenerateConfig,
+    "extract": ExtractConfig,
     "probe_sweep": ProbeConfig,
-    "diff_means":  DiffMeansConfig,
-    "pipeline":    PipelineConfig,
+    "diff_means": DiffMeansConfig,
+    "pipeline": PipelineConfig,
 }
 
 
@@ -107,7 +109,9 @@ def _action_generate(cfg: GenerateConfig) -> RunResult:
     bundle = builder.to_samples(text_key="prompt", label_key=None, id_key=None)
 
     generator = ResponseGenerator(
-        model=cfg.model, generation=cfg.generation, steering=cfg.steering,
+        model=cfg.model,
+        generation=cfg.generation,
+        steering=cfg.steering,
     )
     result = generator.generate(bundle)
     result.to_jsonl(output_file)
@@ -197,7 +201,9 @@ def _action_pipeline(cfg: PipelineConfig) -> RunResult:
         labels = [s[1] for s in sampled]
 
     n_pos = sum(labels)
-    print(f"Loaded {len(rows)} samples: {n_pos} positive, {len(labels) - n_pos} negative")
+    print(
+        f"Loaded {len(rows)} samples: {n_pos} positive, {len(labels) - n_pos} negative"
+    )
 
     bundle = ProbingSampleBuilder.from_iterable(rows).to_samples(text_key="text")
     train_idx, val_idx, test_idx = bundle.train_val_test_split(
@@ -211,7 +217,9 @@ def _action_pipeline(cfg: PipelineConfig) -> RunResult:
     # --- Extract activations ---
     targets = cfg.sweep.activation_targets or [f"layers_output:{i}" for i in cfg.layers]
     cfg.extraction.activations = targets
-    cfg.extraction.save_path = cfg.extraction.save_path or str(output_dir / "activations")
+    cfg.extraction.save_path = cfg.extraction.save_path or str(
+        output_dir / "activations"
+    )
 
     extractor = ActivationExtractor(model=cfg.model, extraction=cfg.extraction)
     print(f"Extracting activations ({len(targets)} layers, {len(rows)} samples)...")
@@ -225,8 +233,11 @@ def _action_pipeline(cfg: PipelineConfig) -> RunResult:
     runner = LayerProbeSweepRunner(probe=cfg.probe, sweep=sweep_params)
     result = runner.run(
         extraction,
-        train_indices=train_idx, val_indices=val_idx, test_indices=test_idx,
-        labels=labels, group_ids=bundle.ids,
+        train_indices=train_idx,
+        val_indices=val_idx,
+        test_indices=test_idx,
+        labels=labels,
+        group_ids=bundle.ids,
     )
 
     # --- Print results ---
@@ -248,7 +259,7 @@ def _action_pipeline(cfg: PipelineConfig) -> RunResult:
     # --- OOD evaluation ---
     ood_metrics: dict[str, Any] = {}
     if cfg.dataset.ood_configs:
-        print(f"\n{'='*60}\nOOD EVALUATION\n{'='*60}")
+        print(f"\n{'=' * 60}\nOOD EVALUATION\n{'=' * 60}")
         print(f"{'Dataset':<32} {'AUROC':>8} {'Acc':>8} {'F1':>8}")
         print("-" * 60)
 
@@ -271,7 +282,9 @@ def _action_pipeline(cfg: PipelineConfig) -> RunResult:
 
         for ood_config in cfg.dataset.ood_configs:
             try:
-                ood_ds = load_dataset(cfg.dataset.path, ood_config, split=cfg.dataset.ood_split)
+                ood_ds = load_dataset(
+                    cfg.dataset.path, ood_config, split=cfg.dataset.ood_split
+                )
             except Exception as e:
                 print(f"  {ood_config:<30} SKIPPED: {e}")
                 continue
@@ -285,22 +298,32 @@ def _action_pipeline(cfg: PipelineConfig) -> RunResult:
                 ood_rows.append({"id": str(row_id), "text": text, "label": label})
                 ood_labels.append(label)
 
-            ood_bundle = ProbingSampleBuilder.from_iterable(ood_rows).to_samples(text_key="text")
+            ood_bundle = ProbingSampleBuilder.from_iterable(ood_rows).to_samples(
+                text_key="text"
+            )
             ood_extraction = ood_extractor.extract(ood_bundle)
 
             ood_dataset = ProbingDataset.from_extraction_result(
-                ood_extraction, activation_key=result.best_key, labels=ood_labels,
+                ood_extraction,
+                activation_key=result.best_key,
+                labels=ood_labels,
             )
             collate_fn = None
             if ood_dataset.sequence_mode:
                 from dataset.collate import sequence_collate_fn
+
                 collate_fn = sequence_collate_fn
 
             loader = torch.utils.data.DataLoader(
-                ood_dataset, batch_size=128, shuffle=False, collate_fn=collate_fn,
+                ood_dataset,
+                batch_size=128,
+                shuffle=False,
+                collate_fn=collate_fn,
             )
 
-            probe_model = build_probe(cfg.probe.probe_type, input_dim, **cfg.probe.probe_kwargs)
+            probe_model = build_probe(
+                cfg.probe.probe_type, input_dim, **cfg.probe.probe_kwargs
+            )
             probe_model.load_state_dict(best_state)
             evaluator = BinaryProbeTrainer(model=probe_model, config=cfg.probe)
             metrics = evaluator.evaluate(loader)

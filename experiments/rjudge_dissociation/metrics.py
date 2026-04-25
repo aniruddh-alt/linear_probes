@@ -22,10 +22,12 @@ def auroc_between_cells(
         return float("nan")
 
     combined_scores = torch.cat([a_scores, b_scores])
-    combined_labels = torch.cat([
-        torch.ones(a_scores.numel(), dtype=torch.long),
-        torch.zeros(b_scores.numel(), dtype=torch.long),
-    ])
+    combined_labels = torch.cat(
+        [
+            torch.ones(a_scores.numel(), dtype=torch.long),
+            torch.zeros(b_scores.numel(), dtype=torch.long),
+        ]
+    )
     metric = BinaryAUROC()
     return float(metric(combined_scores.float().cpu(), combined_labels.cpu()).item())
 

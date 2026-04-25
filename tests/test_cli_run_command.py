@@ -33,7 +33,9 @@ class TestCli:
             "run_name: cli_test\naction: probe_sweep\n",
             encoding="utf-8",
         )
-        with pytest.raises(NotImplementedError, match="probe_sweep action not yet wired"):
+        with pytest.raises(
+            NotImplementedError, match="probe_sweep action not yet wired"
+        ):
             main([str(config_path)])
 
     def test_main_no_args_exits(self):

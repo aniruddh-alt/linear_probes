@@ -1,4 +1,5 @@
 """Artifact I/O path configuration for stage chaining."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

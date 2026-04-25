@@ -50,7 +50,10 @@ def _to_jsonable(value: Any) -> Any:
     if isinstance(value, Path):
         return str(value)
     if is_dataclass(value):
-        return {field.name: _to_jsonable(getattr(value, field.name)) for field in fields(value)}
+        return {
+            field.name: _to_jsonable(getattr(value, field.name))
+            for field in fields(value)
+        }
     if isinstance(value, dict):
         return {str(key): _to_jsonable(item) for key, item in value.items()}
     if isinstance(value, (list, tuple, set)):

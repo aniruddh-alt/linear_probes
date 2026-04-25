@@ -1,4 +1,5 @@
 """Tests for GenerateConfig."""
+
 from __future__ import annotations
 
 from core.configs.generate_config import GenerateConfig
@@ -15,12 +16,14 @@ class TestGenerateConfig:
         assert cfg.io.output_dir == "artifacts"
 
     def test_from_dict(self):
-        cfg = GenerateConfig.from_dict({
-            "run_name": "test_gen",
-            "model": {"model_name": "Qwen/Qwen2.5-1.5B-Instruct"},
-            "generation": {"max_new_tokens": 128},
-            "io": {"output_dir": "artifacts/refusal/"},
-        })
+        cfg = GenerateConfig.from_dict(
+            {
+                "run_name": "test_gen",
+                "model": {"model_name": "Qwen/Qwen2.5-1.5B-Instruct"},
+                "generation": {"max_new_tokens": 128},
+                "io": {"output_dir": "artifacts/refusal/"},
+            }
+        )
         assert cfg.run_name == "test_gen"
         assert cfg.model.model_name == "Qwen/Qwen2.5-1.5B-Instruct"
         assert cfg.generation.max_new_tokens == 128
@@ -32,29 +35,33 @@ class TestGenerateConfig:
         assert cfg.steering.mode == "project_subtract"
 
     def test_steering_from_dict(self):
-        cfg = GenerateConfig.from_dict({
-            "model": {"model_name": "test"},
-            "steering": {
-                "enabled": True,
-                "vector_path": "v.pt",
-                "layers": [14, 15],
-                "strength": 20.0,
-                "mode": "additive",
-            },
-        })
+        cfg = GenerateConfig.from_dict(
+            {
+                "model": {"model_name": "test"},
+                "steering": {
+                    "enabled": True,
+                    "vector_path": "v.pt",
+                    "layers": [14, 15],
+                    "strength": 20.0,
+                    "mode": "additive",
+                },
+            }
+        )
         assert cfg.steering.enabled is True
         assert cfg.steering.layers == [14, 15]
         assert cfg.steering.strength == 20.0
 
     def test_steering_yaml_roundtrip(self, tmp_path):
-        cfg = GenerateConfig.from_dict({
-            "steering": {
-                "enabled": True,
-                "vector_path": "w.pt",
-                "layers": [10],
-                "mode": "project_subtract",
-            },
-        })
+        cfg = GenerateConfig.from_dict(
+            {
+                "steering": {
+                    "enabled": True,
+                    "vector_path": "w.pt",
+                    "layers": [10],
+                    "mode": "project_subtract",
+                },
+            }
+        )
         path = tmp_path / "gen_steer.yaml"
         cfg.to_yaml(path)
         loaded = GenerateConfig.from_yaml(path)

@@ -13,8 +13,8 @@ from experiments.rjudge_dissociation.metrics import (
 class TestAurocBetweenCells:
     def test_perfect_separation(self) -> None:
         scores = torch.tensor([0.9, 0.8, 0.1, 0.2])
-        mask_a = torch.tensor([True, True, False, False])   # group A (pos)
-        mask_b = torch.tensor([False, False, True, True])   # group B (neg)
+        mask_a = torch.tensor([True, True, False, False])  # group A (pos)
+        mask_b = torch.tensor([False, False, True, True])  # group B (neg)
         auroc = auroc_between_cells(scores=scores, mask_a=mask_a, mask_b=mask_b)
         assert auroc == 1.0
 
@@ -39,6 +39,7 @@ class TestAurocBetweenCells:
         auroc = auroc_between_cells(scores=scores, mask_a=mask_a, mask_b=mask_b)
         # Undefined when one group is empty; return float("nan")
         import math
+
         assert math.isnan(auroc)
 
 
@@ -62,4 +63,5 @@ class TestClassificationRate:
         scores = torch.tensor([])
         rate = classification_rate_at_threshold(scores=scores, threshold=0.5)
         import math
+
         assert math.isnan(rate)

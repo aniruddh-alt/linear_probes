@@ -17,13 +17,20 @@ class DiffMeansSweepRunnerTests(unittest.TestCase):
         torch.manual_seed(0)
         z = torch.randn(n)
         labels = (z > 0).long().tolist()
-        informative = torch.stack([
-            z + 0.05 * torch.randn(n),
-            0.1 * torch.randn(n),
-            0.1 * torch.randn(n),
-        ], dim=1)
+        informative = torch.stack(
+            [
+                z + 0.05 * torch.randn(n),
+                0.1 * torch.randn(n),
+                0.1 * torch.randn(n),
+            ],
+            dim=1,
+        )
         noisy = torch.randn(n, 3)
-        layers = {0: noisy, 1: informative} if informative_layer == 1 else {0: informative, 1: noisy}
+        layers = (
+            {0: noisy, 1: informative}
+            if informative_layer == 1
+            else {0: informative, 1: noisy}
+        )
         extraction = {
             "requested": ["layers_output:0", "layers_output:1"],
             "activations": {f"layers_output:{k}": v for k, v in layers.items()},

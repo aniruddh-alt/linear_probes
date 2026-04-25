@@ -69,9 +69,7 @@ class GenerationResult:
             labels=labels,
         )
 
-    def to_sample_bundle(
-        self, *, include_response: bool = False
-    ) -> SampleBundle:
+    def to_sample_bundle(self, *, include_response: bool = False) -> SampleBundle:
         """Convert to SampleBundle for activation extraction.
 
         Args:
@@ -79,7 +77,9 @@ class GenerationResult:
                 concatenated. If False, original prompts only.
         """
         if include_response:
-            texts = [f"{p}{r}" for p, r in zip(self.prompts, self.responses, strict=True)]
+            texts = [
+                f"{p}{r}" for p, r in zip(self.prompts, self.responses, strict=True)
+            ]
         else:
             texts = list(self.prompts)
         return SampleBundle(

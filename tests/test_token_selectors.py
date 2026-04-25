@@ -114,9 +114,7 @@ class LastNonPadTest(unittest.TestCase):
     def test_uses_attention_mask(self) -> None:
         x = _hidden(3, 6, 4)
         attn = torch.tensor(
-            [[1, 1, 1, 0, 0, 0],
-             [1, 1, 1, 1, 1, 0],
-             [1, 1, 1, 1, 1, 1]]
+            [[1, 1, 1, 0, 0, 0], [1, 1, 1, 1, 1, 0], [1, 1, 1, 1, 1, 1]]
         )
         out, _ = LastNonPad().select(x, kind="layers_output", attention_mask=attn)
         self.assertEqual(tuple(out.shape), (3, 4))
@@ -147,10 +145,7 @@ class LastNonPadTest(unittest.TestCase):
 class TokenIdAnchorTest(unittest.TestCase):
     def test_first_match_offset_zero(self) -> None:
         x = _hidden(2, 6, 4)
-        ids = torch.tensor(
-            [[10, 20, 99, 30, 40, 50],
-             [99, 11, 12, 13, 14, 15]]
-        )
+        ids = torch.tensor([[10, 20, 99, 30, 40, 50], [99, 11, 12, 13, 14, 15]])
         out, _ = TokenIdAnchor(pattern=[99]).select(
             x, kind="layers_output", input_ids=ids
         )
@@ -159,10 +154,7 @@ class TokenIdAnchorTest(unittest.TestCase):
 
     def test_offset_advances_past_pattern(self) -> None:
         x = _hidden(2, 8, 4)
-        ids = torch.tensor(
-            [[1, 2, 90, 91, 92, 7, 7, 7],
-             [90, 91, 92, 5, 5, 5, 5, 5]]
-        )
+        ids = torch.tensor([[1, 2, 90, 91, 92, 7, 7, 7], [90, 91, 92, 5, 5, 5, 5, 5]])
         out, _ = TokenIdAnchor(pattern=[90, 91, 92], offset=3).select(
             x, kind="layers_output", input_ids=ids
         )
@@ -181,9 +173,7 @@ class TokenIdAnchorTest(unittest.TestCase):
         x = _hidden(2, 5, 4)
         ids = torch.tensor([[1, 2, 3, 4, 5], [6, 7, 8, 9, 10]])
         with self.assertRaisesRegex(ValueError, "not found"):
-            TokenIdAnchor(pattern=[42]).select(
-                x, kind="layers_output", input_ids=ids
-            )
+            TokenIdAnchor(pattern=[42]).select(x, kind="layers_output", input_ids=ids)
 
     def test_offset_out_of_range_raises(self) -> None:
         x = _hidden(1, 5, 4)

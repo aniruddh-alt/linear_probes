@@ -65,15 +65,21 @@ def _run_response_generation(
         with responses_path.open("r", encoding="utf-8") as f:
             existing = sum(1 for line in f if line.strip())
         if existing == len(scenarios):
-            print(f"[rjudge] Skipping response generation: {responses_path} already has {existing} rows.")
+            print(
+                f"[rjudge] Skipping response generation: {responses_path} already has {existing} rows."
+            )
             return
-        print(f"[rjudge] responses.jsonl has {existing} rows, expected {len(scenarios)}; regenerating.")
+        print(
+            f"[rjudge] responses.jsonl has {existing} rows, expected {len(scenarios)}; regenerating."
+        )
 
     judgment_cfg = cfg["judgment"]
     model_cfg = cfg["model"]
 
     generator = ResponseGenerator(
-        model=ModelParams(model_name=model_cfg["model_name"], dtype=model_cfg.get("dtype")),
+        model=ModelParams(
+            model_name=model_cfg["model_name"], dtype=model_cfg.get("dtype")
+        ),
         generation=GenerationParams(
             max_new_tokens=judgment_cfg["max_new_tokens"],
             batch_size=judgment_cfg.get("batch_size", 2),
@@ -102,13 +108,18 @@ def _run_response_generation(
     with responses_path.open("w", encoding="utf-8") as f:
         for sid, response in zip(result.sample_ids, result.responses, strict=True):
             scenario = id_to_scenario[sid]
-            f.write(json.dumps({
-                "sample_id": sid,
-                "original_prompt": scenario["formatted_prompt"],
-                "original_response": response,
-                "ground_truth_label": scenario["label"],
-                "category": scenario["category"],
-            }) + "\n")
+            f.write(
+                json.dumps(
+                    {
+                        "sample_id": sid,
+                        "original_prompt": scenario["formatted_prompt"],
+                        "original_response": response,
+                        "ground_truth_label": scenario["label"],
+                        "category": scenario["category"],
+                    }
+                )
+                + "\n"
+            )
 
 
 def _run_llm_judge(
@@ -132,12 +143,17 @@ def _run_llm_judge(
         with responses_path.open("r", encoding="utf-8") as f:
             response_rows = sum(1 for line in f if line.strip())
         if labeled_rows == response_rows:
-            print(f"[rjudge] Skipping LLM judge: {labeled_path} already has {labeled_rows} rows.")
+            print(
+                f"[rjudge] Skipping LLM judge: {labeled_path} already has {labeled_rows} rows."
+            )
             return
-        print(f"[rjudge] labeled.jsonl has {labeled_rows} rows, expected {response_rows}; re-running judge.")
+        print(
+            f"[rjudge] labeled.jsonl has {labeled_rows} rows, expected {response_rows}; re-running judge."
+        )
 
     import shutil
     import subprocess
+
     oumi_bin = shutil.which("oumi")
     if oumi_bin is None:
         raise RuntimeError(
@@ -195,6 +211,7 @@ def _run_extraction(
     # Use the chat-template-formatted prompts to match what the judgment pass saw —
     # activations must come from the exact input the model classified.
     from transformers import AutoTokenizer
+
     tokenizer = AutoTokenizer.from_pretrained(model_cfg["model_name"])
     rows = []
     for s in scenarios:
@@ -207,7 +224,9 @@ def _run_extraction(
     bundle = ProbingSampleBuilder.from_iterable(rows).to_samples(text_key="text")
 
     extractor = ActivationExtractor(
-        model=ModelParams(model_name=model_cfg["model_name"], dtype=model_cfg.get("dtype")),
+        model=ModelParams(
+            model_name=model_cfg["model_name"], dtype=model_cfg.get("dtype")
+        ),
         extraction=ExtractionParams(
             save_path=extraction_cfg["save_path"],
             activations=list(extraction_cfg["activations"]),
@@ -236,13 +255,9 @@ def _build_split_on_subset(
             subset the extraction before probe training.
     """
     tp_tn_indices = [
-        i for i, s in enumerate(scenarios)
-        if cells.get(s["id"]) in ("TP", "TN")
+        i for i, s in enumerate(scenarios) if cells.get(s["id"]) in ("TP", "TN")
     ]
-    fn_indices = [
-        i for i, s in enumerate(scenarios)
-        if cells.get(s["id"]) == "FN"
-    ]
+    fn_indices = [i for i, s in enumerate(scenarios) if cells.get(s["id"]) == "FN"]
     labels_subset = [scenarios[i]["label"] for i in tp_tn_indices]
 
     train_rel, val_rel, test_rel = stratified_train_val_test_split(
@@ -319,12 +334,22 @@ def _evaluate_dissociation(
         "threshold": threshold,
         "cell_counts": {
             cell: int(mask.sum().item())
-            for cell, mask in (("TP", tp_mask), ("FP", fp_mask),
-                               ("FN", fn_mask), ("TN", tn_mask))
+            for cell, mask in (
+                ("TP", tp_mask),
+                ("FP", fp_mask),
+                ("FN", fn_mask),
+                ("TN", tn_mask),
+            )
         },
-        "auroc_fn_vs_tn": auroc_between_cells(scores=scores, mask_a=fn_mask, mask_b=tn_mask),
-        "auroc_fn_vs_tp": auroc_between_cells(scores=scores, mask_a=fn_mask, mask_b=tp_mask),
-        "auroc_fp_vs_tp": auroc_between_cells(scores=scores, mask_a=fp_mask, mask_b=tp_mask),
+        "auroc_fn_vs_tn": auroc_between_cells(
+            scores=scores, mask_a=fn_mask, mask_b=tn_mask
+        ),
+        "auroc_fn_vs_tp": auroc_between_cells(
+            scores=scores, mask_a=fn_mask, mask_b=tp_mask
+        ),
+        "auroc_fp_vs_tp": auroc_between_cells(
+            scores=scores, mask_a=fp_mask, mask_b=tp_mask
+        ),
         "fn_classification_rate": classification_rate_at_threshold(
             scores=fn_scores, threshold=threshold
         ),
@@ -364,9 +389,11 @@ def main(config_path: Path | None = None) -> None:
         github_base_url=cfg["rjudge"]["github_base_url"],
     )
     labels_by_id = {s["id"]: s["label"] for s in scenarios}
-    print(f"[rjudge] Loaded {len(scenarios)} scenarios "
-          f"({sum(labels_by_id.values())} risky, "
-          f"{len(scenarios) - sum(labels_by_id.values())} safe)")
+    print(
+        f"[rjudge] Loaded {len(scenarios)} scenarios "
+        f"({sum(labels_by_id.values())} risky, "
+        f"{len(scenarios) - sum(labels_by_id.values())} safe)"
+    )
 
     print("[rjudge] Generating subject-model responses...")
     _run_response_generation(scenarios=scenarios, cfg=cfg, output_dir=output_dir)
@@ -397,8 +424,10 @@ def main(config_path: Path | None = None) -> None:
         split_cfg=cfg["split"],
         seed=cfg["seed"],
     )
-    print(f"[rjudge] Split sizes: train={len(train_rel)}, val={len(val_rel)}, "
-          f"test={len(test_rel)}, TPUTN={len(tp_tn_idx)}, FN(held-out)={len(fn_idx)}")
+    print(
+        f"[rjudge] Split sizes: train={len(train_rel)}, val={len(val_rel)}, "
+        f"test={len(test_rel)}, TPUTN={len(tp_tn_idx)}, FN(held-out)={len(fn_idx)}"
+    )
 
     # Filter extraction to TP U TN rows so the sweep runner sees clean data
     # (full coverage, uncontaminated test metrics, honest control-sanity check).
@@ -432,8 +461,10 @@ def main(config_path: Path | None = None) -> None:
     )
 
     best_probe = sweep_result.probes[sweep_result.best_key]
-    print(f"[rjudge] Best layer: {sweep_result.best_key} "
-          f"(val {sweep_cfg['selection_metric']}={sweep_result.best_score:.4f})")
+    print(
+        f"[rjudge] Best layer: {sweep_result.best_key} "
+        f"(val {sweep_cfg['selection_metric']}={sweep_result.best_score:.4f})"
+    )
     print(f"[rjudge] Test metrics: {sweep_result.test_metrics}")
 
     torch.save(
@@ -466,7 +497,9 @@ def main(config_path: Path | None = None) -> None:
         },
         "dissociation": dissoc,
     }
-    (output_dir / "results.json").write_text(json.dumps(results, indent=2, default=float))
+    (output_dir / "results.json").write_text(
+        json.dumps(results, indent=2, default=float)
+    )
     print(f"[rjudge] Done. Results at {output_dir / 'results.json'}")
 
 

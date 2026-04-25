@@ -16,7 +16,12 @@ from activation.storage import (
 )
 
 
-class ProbingDataset(Dataset[tuple[torch.Tensor, torch.Tensor] | tuple[torch.Tensor, torch.Tensor, torch.Tensor]]):
+class ProbingDataset(
+    Dataset[
+        tuple[torch.Tensor, torch.Tensor]
+        | tuple[torch.Tensor, torch.Tensor, torch.Tensor]
+    ]
+):
     """Dataset for binary probes supporting pooled (N, D) and sequence (variable S, D) modes."""
 
     def __init__(
@@ -33,21 +38,30 @@ class ProbingDataset(Dataset[tuple[torch.Tensor, torch.Tensor] | tuple[torch.Ten
         self.sequence_mode = False
         self._sequence_features: list[torch.Tensor] | None = None
 
-        if isinstance(features, list) and features and isinstance(features[0], torch.Tensor) and features[0].ndim == 2:
-                hidden_dim = features[0].shape[1]
-                is_variable_length = any(f.shape[0] != features[0].shape[0] for f in features)
-                all_2d_same_hidden = all(f.ndim == 2 and f.shape[1] == hidden_dim for f in features)
-                force_sequence = sequence_mode is True
-                if (is_variable_length or force_sequence) and all_2d_same_hidden:
-                    self.sequence_mode = True
-                    self._sequence_features = [f.detach().float() for f in features]
-                    if len(self._sequence_features) != len(labels):
-                        raise ValueError(
-                            "features and labels must have same length, got "
-                            f"{len(self._sequence_features)} and {len(labels)}."
-                        )
-                    self.features = torch.empty(0)
-                    return
+        if (
+            isinstance(features, list)
+            and features
+            and isinstance(features[0], torch.Tensor)
+            and features[0].ndim == 2
+        ):
+            hidden_dim = features[0].shape[1]
+            is_variable_length = any(
+                f.shape[0] != features[0].shape[0] for f in features
+            )
+            all_2d_same_hidden = all(
+                f.ndim == 2 and f.shape[1] == hidden_dim for f in features
+            )
+            force_sequence = sequence_mode is True
+            if (is_variable_length or force_sequence) and all_2d_same_hidden:
+                self.sequence_mode = True
+                self._sequence_features = [f.detach().float() for f in features]
+                if len(self._sequence_features) != len(labels):
+                    raise ValueError(
+                        "features and labels must have same length, got "
+                        f"{len(self._sequence_features)} and {len(labels)}."
+                    )
+                self.features = torch.empty(0)
+                return
 
         features_tensor = self._as_feature_matrix(features)
         if int(features_tensor.shape[0]) != len(labels):
@@ -81,15 +95,16 @@ class ProbingDataset(Dataset[tuple[torch.Tensor, torch.Tensor] | tuple[torch.Ten
         """Build dataset from one activation stream in an ExtractionResult."""
         storage = extraction.get("storage")
         if activation_key not in extraction["activations"] and not (
-            isinstance(storage, dict)
-            and storage.get("mode") == "safetensors"
+            isinstance(storage, dict) and storage.get("mode") == "safetensors"
         ):
             keys = ", ".join(extraction["activations"].keys())
             raise KeyError(
                 f"activation_key '{activation_key}' not found. Available keys: {keys}"
             )
 
-        raw_features = cls._resolve_raw_features(extraction, activation_key=activation_key)
+        raw_features = cls._resolve_raw_features(
+            extraction, activation_key=activation_key
+        )
 
         if isinstance(raw_features, list):
             num_features = len(raw_features)

@@ -15,7 +15,9 @@ def load_extraction_manifest(
     extraction_path: str | Path, *, map_location: str | torch.device = "cpu"
 ) -> dict[str, Any]:
     """Load an extraction manifest from disk."""
-    loaded = torch.load(Path(extraction_path), map_location=map_location, weights_only=False)
+    loaded = torch.load(
+        Path(extraction_path), map_location=map_location, weights_only=False
+    )
     if not isinstance(loaded, dict):
         raise TypeError(
             f"Extraction manifest must be a dict, got {type(loaded).__name__}."
@@ -104,14 +106,12 @@ def _available_activation_keys(extraction: Mapping[str, Any]) -> list[str]:
 
     storage = extraction.get("storage")
     if isinstance(storage, dict) and storage.get("mode") == "safetensors":
-            safetensors_path = storage.get("safetensors_path")
-            if isinstance(safetensors_path, str):
-                with safe_open(
-                    safetensors_path, framework="pt", device="cpu"
-                ) as handle:
-                    for key in handle.keys():  # noqa: SIM118 - safe_open is not iterable
-                        key_text = str(key)
-                        if key_text not in ordered:
-                            ordered.append(key_text)
+        safetensors_path = storage.get("safetensors_path")
+        if isinstance(safetensors_path, str):
+            with safe_open(safetensors_path, framework="pt", device="cpu") as handle:
+                for key in handle.keys():  # noqa: SIM118 - safe_open is not iterable
+                    key_text = str(key)
+                    if key_text not in ordered:
+                        ordered.append(key_text)
 
     return ordered

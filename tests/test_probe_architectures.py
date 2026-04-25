@@ -204,9 +204,7 @@ class BaseProbeBackwardCompatTest(unittest.TestCase):
         probe = MeanProbe(input_dim=4)
         x = torch.randn(3, 7, 4)
         mask = torch.tensor(
-            [[1, 1, 1, 0, 0, 0, 0],
-             [1, 1, 1, 1, 1, 0, 0],
-             [1, 1, 1, 1, 1, 1, 1]],
+            [[1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 0, 0], [1, 1, 1, 1, 1, 1, 1]],
             dtype=torch.float32,
         )
         out_new = probe(x, mask=mask)
@@ -220,9 +218,7 @@ class BaseProbeBackwardCompatTest(unittest.TestCase):
         probe = MaxProbe(input_dim=4)
         x = torch.randn(3, 7, 4)
         mask = torch.tensor(
-            [[1, 1, 1, 0, 0, 0, 0],
-             [1, 1, 1, 1, 1, 0, 0],
-             [1, 1, 1, 1, 1, 1, 1]],
+            [[1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 0, 0], [1, 1, 1, 1, 1, 1, 1]],
             dtype=torch.float32,
         )
         out_new = probe(x, mask=mask)
@@ -236,9 +232,7 @@ class BaseProbeBackwardCompatTest(unittest.TestCase):
         probe = SoftmaxProbe(input_dim=4, phi=5.0)
         x = torch.randn(3, 7, 4)
         mask = torch.tensor(
-            [[1, 1, 1, 0, 0, 0, 0],
-             [1, 1, 1, 1, 1, 0, 0],
-             [1, 1, 1, 1, 1, 1, 1]],
+            [[1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 0, 0], [1, 1, 1, 1, 1, 1, 1]],
             dtype=torch.float32,
         )
         out_new = probe(x, mask=mask)
@@ -278,7 +272,14 @@ class EndToEndProbeTest(unittest.TestCase):
         from probes.linear import BinaryProbeTrainer
 
         torch.manual_seed(42)
-        for probe_type in ["linear", "mean", "max", "softmax", "attention", "max_rolling_mean"]:
+        for probe_type in [
+            "linear",
+            "mean",
+            "max",
+            "softmax",
+            "attention",
+            "max_rolling_mean",
+        ]:
             with self.subTest(probe_type=probe_type):
                 features = torch.randn(32, 15, 8)
                 labels = (features[:, -1, 0] > 0).long()
@@ -289,10 +290,14 @@ class EndToEndProbeTest(unittest.TestCase):
                 model = build_probe(probe_type, input_dim=8)
                 trainer = BinaryProbeTrainer(
                     model=model,
-                    config=ProbeParams(epochs=3, learning_rate=0.01, early_stopping_patience=None)
+                    config=ProbeParams(
+                        epochs=3, learning_rate=0.01, early_stopping_patience=None
+                    ),
                 )
                 trainer.fit(loader, val_loader=loader)
                 metrics = trainer.evaluate(loader)
                 self.assertIn("auroc", metrics)
                 auroc = metrics["auroc"]
-                self.assertGreater(auroc if isinstance(auroc, (int, float)) else auroc[0], 0.0)
+                self.assertGreater(
+                    auroc if isinstance(auroc, (int, float)) else auroc[0], 0.0
+                )

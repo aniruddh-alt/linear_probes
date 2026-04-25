@@ -43,10 +43,16 @@ def load_labeled_data() -> tuple[list[dict], list[int]]:
         for line in f:
             row = json.loads(line)
             label_str = row["refusal_label"]
-            label = 1 if "refusal" in label_str and "non-refusal" not in label_str else 0
-            rows.append({"id": row["sample_id"], "text": row["original_prompt"], "label": label})
+            label = (
+                1 if "refusal" in label_str and "non-refusal" not in label_str else 0
+            )
+            rows.append(
+                {"id": row["sample_id"], "text": row["original_prompt"], "label": label}
+            )
     labels = [r["label"] for r in rows]
-    print(f"Loaded {len(rows)} samples: {sum(labels)} refusal, {len(labels) - sum(labels)} non-refusal")
+    print(
+        f"Loaded {len(rows)} samples: {sum(labels)} refusal, {len(labels) - sum(labels)} non-refusal"
+    )
     return rows, labels
 
 
@@ -66,8 +72,11 @@ def main() -> None:
     builder = ProbingSampleBuilder.from_iterable(rows)
     bundle = builder.to_samples(text_key="text")
     train_idx, val_idx, test_idx = bundle.train_val_test_split(
-        train_fraction=0.7, val_fraction=0.15, test_fraction=0.15,
-        seed=SEED, group_ids=bundle.ids,
+        train_fraction=0.7,
+        val_fraction=0.15,
+        test_fraction=0.15,
+        seed=SEED,
+        group_ids=bundle.ids,
     )
 
     targets = [f"layers_output:{i}" for i in range(NUM_LAYERS)]
@@ -75,7 +84,9 @@ def main() -> None:
         model=ModelParams(model_name=MODEL_NAME, dtype="bfloat16"),
         extraction=ExtractionParams(
             save_path=str(DATA_DIR / "activations"),
-            activations=targets, batch_size=BATCH_SIZE, token_index=-1,
+            activations=targets,
+            batch_size=BATCH_SIZE,
+            token_index=-1,
         ),
     )
     extraction = extractor.extract(bundle)
@@ -84,12 +95,17 @@ def main() -> None:
     runner = DiffMeansSweepRunner(sweep=SweepParams(activation_targets=targets))
     result = runner.run(
         extraction,
-        train_indices=train_idx, val_indices=val_idx, test_indices=test_idx,
-        labels=labels, group_ids=bundle.ids,
+        train_indices=train_idx,
+        val_indices=val_idx,
+        test_indices=test_idx,
+        labels=labels,
+        group_ids=bundle.ids,
     )
 
     best_layer_idx = int(result.best_key.split(":")[-1])
-    print(f"\nDiff-means best layer: {result.best_key} (val_auroc={result.best_score:.4f})")
+    print(
+        f"\nDiff-means best layer: {result.best_key} (val_auroc={result.best_score:.4f})"
+    )
     print(f"Test metrics: {result.test_metrics}")
     print(f"Controls: {result.controls}")
 
@@ -109,7 +125,11 @@ def main() -> None:
     if probe_dir_path.exists():
         probe_dir = torch.load(probe_dir_path, weights_only=True).float()
         dm_dir = result.best_direction.float()
-        cosine = float(torch.nn.functional.cosine_similarity(probe_dir.unsqueeze(0), dm_dir.unsqueeze(0)).item())
+        cosine = float(
+            torch.nn.functional.cosine_similarity(
+                probe_dir.unsqueeze(0), dm_dir.unsqueeze(0)
+            ).item()
+        )
         print(f"Cosine similarity (probe vs diff-means): {cosine:.4f}")
 
     # 4. Steering experiment
@@ -130,10 +150,16 @@ def main() -> None:
     print("STEERED (diff-means, additive strength=-1, layers 14-20)")
     print("=" * 60)
     steering = SteeringParams(
-        enabled=True, vector_path=str(direction_path),
-        layers=list(range(14, 21)), mode="additive", strength=-1.0, normalize=True,
+        enabled=True,
+        vector_path=str(direction_path),
+        layers=list(range(14, 21)),
+        mode="additive",
+        strength=-1.0,
+        normalize=True,
     )
-    steered = ResponseGenerator(model=model_params, generation=gen_params, steering=steering)
+    steered = ResponseGenerator(
+        model=model_params, generation=gen_params, steering=steering
+    )
     steered_result = steered.generate(all_prompts)
     for p, r in zip(raw_prompts, steered_result.responses, strict=True):
         print(f"\n[PROMPT] {p}\n[RESPONSE] {r[:300]}")

@@ -9,7 +9,12 @@ import pytest
 from core.configs.probe_config import ProbeConfig
 from runners.experiment_runner import load_run_config, run_experiment
 
-QUICKSTART_PATH = Path(__file__).resolve().parent.parent / "configs" / "recipes" / "quickstart_probe.yaml"
+QUICKSTART_PATH = (
+    Path(__file__).resolve().parent.parent
+    / "configs"
+    / "recipes"
+    / "quickstart_probe.yaml"
+)
 
 
 class TestQuickstartYamlE2E:
@@ -29,11 +34,15 @@ class TestQuickstartYamlE2E:
         assert reloaded == cfg
 
     def test_quickstart_yaml_executes_probe_flow(self):
-        with pytest.raises(NotImplementedError, match="probe_sweep action not yet wired"):
+        with pytest.raises(
+            NotImplementedError, match="probe_sweep action not yet wired"
+        ):
             run_experiment(config_path=QUICKSTART_PATH)
 
     def test_quickstart_with_override(self):
-        with pytest.raises(NotImplementedError, match="probe_sweep action not yet wired"):
+        with pytest.raises(
+            NotImplementedError, match="probe_sweep action not yet wired"
+        ):
             run_experiment(
                 config_path=QUICKSTART_PATH,
                 overrides={"probe.epochs": "5", "split.train_fraction": "0.7"},
@@ -41,9 +50,7 @@ class TestQuickstartYamlE2E:
 
     def test_load_quickstart_via_alias(self, tmp_path):
         aliases_file = tmp_path / "aliases.yaml"
-        aliases_file.write_text(
-            f"quickstart: {QUICKSTART_PATH}\n", encoding="utf-8"
-        )
+        aliases_file.write_text(f"quickstart: {QUICKSTART_PATH}\n", encoding="utf-8")
         cfg = load_run_config("quickstart", aliases_path=aliases_file)
         assert isinstance(cfg, ProbeConfig)
         assert cfg.run_name == "quickstart_probe"

@@ -60,7 +60,9 @@ def main() -> None:
     print("=" * 60)
     baseline = ResponseGenerator(model=model_params, generation=gen_params)
     baseline_result = baseline.generate(all_prompts)
-    for prompt, response in zip(baseline_result.prompts, baseline_result.responses, strict=True):
+    for prompt, response in zip(
+        baseline_result.prompts, baseline_result.responses, strict=True
+    ):
         print(f"\n[PROMPT] {prompt}")
         print(f"[RESPONSE] {response[:300]}")
 
@@ -80,7 +82,9 @@ def main() -> None:
         model=model_params, generation=gen_params, steering=steering
     )
     steered_result = steered.generate(all_prompts)
-    for prompt, response in zip(steered_result.prompts, steered_result.responses, strict=True):
+    for prompt, response in zip(
+        steered_result.prompts, steered_result.responses, strict=True
+    ):
         print(f"\n[PROMPT] {prompt}")
         print(f"[RESPONSE] {response[:300]}")
 

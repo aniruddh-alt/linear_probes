@@ -74,6 +74,7 @@ class TestGenerationResult:
 
     def test_length_mismatch_raises(self):
         import pytest
+
         with pytest.raises(ValueError):
             GenerationResult(
                 prompts=["a", "b"],

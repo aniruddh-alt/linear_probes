@@ -18,13 +18,23 @@ class TestClassifyCells:
             "e": "unparseable",  # pred=-1
         }
         assert result["counts"] == {
-            "TP": 1, "FN": 1, "FP": 1, "TN": 1, "unparseable": 1,
+            "TP": 1,
+            "FN": 1,
+            "FP": 1,
+            "TN": 1,
+            "unparseable": 1,
         }
 
     def test_empty_inputs(self) -> None:
         result = classify_cells(labels={}, predictions={})
         assert result["per_id"] == {}
-        assert result["counts"] == {"TP": 0, "FN": 0, "FP": 0, "TN": 0, "unparseable": 0}
+        assert result["counts"] == {
+            "TP": 0,
+            "FN": 0,
+            "FP": 0,
+            "TN": 0,
+            "unparseable": 0,
+        }
 
     def test_missing_prediction_is_unparseable(self) -> None:
         # If an id has a ground truth but no prediction entry, treat as unparseable.
@@ -38,5 +48,6 @@ class TestClassifyCells:
         labels = {"x": 1}
         preds = {"x": 1, "extra": 0}
         import pytest
+
         with pytest.raises(ValueError, match="extra"):
             classify_cells(labels=labels, predictions=preds)

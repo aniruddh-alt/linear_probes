@@ -52,7 +52,9 @@ class LayerProbeSweepRunnerTests(unittest.TestCase):
 
         result = LayerProbeSweepRunner(
             probe=ProbeParams(epochs=20, learning_rate=0.05, seed=7, weight_decay=0.01),
-            sweep=SweepParams(activation_targets=[0, 1], batch_size=32, selection_metric="auroc"),
+            sweep=SweepParams(
+                activation_targets=[0, 1], batch_size=32, selection_metric="auroc"
+            ),
         ).run(
             extraction,
             train_indices=train_idx,
@@ -72,7 +74,9 @@ class LayerProbeSweepRunnerTests(unittest.TestCase):
         self.assertIn("real", result.controls)
         self.assertIn("shuffled_labels", result.controls)
         self.assertIn("random_features", result.controls)
-        self.assertEqual(result.split_sizes, (len(train_idx), len(val_idx), len(test_idx)))
+        self.assertEqual(
+            result.split_sizes, (len(train_idx), len(val_idx), len(test_idx))
+        )
 
     def test_runner_writes_manifest_and_test_only_after_selection(self) -> None:
         torch.manual_seed(0)
@@ -86,7 +90,11 @@ class LayerProbeSweepRunnerTests(unittest.TestCase):
             "labels": labels,
         }
         records = [
-            {"id": extraction["sample_ids"][i], "text": f"sample-{i}", "label": labels[i]}
+            {
+                "id": extraction["sample_ids"][i],
+                "text": f"sample-{i}",
+                "label": labels[i],
+            }
             for i in range(len(labels))
         ]
         bundle = ProbingSampleBuilder.from_iterable(records).to_samples(text_key="text")
@@ -129,11 +137,17 @@ class LayerProbeSweepRunnerTests(unittest.TestCase):
             "labels": labels,
         }
         records = [
-            {"id": extraction["sample_ids"][i], "text": f"sample-{i}", "label": labels[i]}
+            {
+                "id": extraction["sample_ids"][i],
+                "text": f"sample-{i}",
+                "label": labels[i],
+            }
             for i in range(len(labels))
         ]
         bundle = ProbingSampleBuilder.from_iterable(records).to_samples(text_key="text")
-        train_idx, val_idx, test_idx = bundle.train_val_test_split(seed=9, group_ids=bundle.ids)
+        train_idx, val_idx, test_idx = bundle.train_val_test_split(
+            seed=9, group_ids=bundle.ids
+        )
         with tempfile.TemporaryDirectory() as tmp_dir:
             manifest = Path(tmp_dir) / "run_manifest.json"
             manifest.write_text("old", encoding="utf-8")
@@ -163,11 +177,17 @@ class LayerProbeSweepRunnerTests(unittest.TestCase):
             "labels": labels,
         }
         records = [
-            {"id": extraction["sample_ids"][i], "text": f"sample-{i}", "label": labels[i]}
+            {
+                "id": extraction["sample_ids"][i],
+                "text": f"sample-{i}",
+                "label": labels[i],
+            }
             for i in range(len(labels))
         ]
         bundle = ProbingSampleBuilder.from_iterable(records).to_samples(text_key="text")
-        train_idx, val_idx, test_idx = bundle.train_val_test_split(seed=7, group_ids=bundle.ids)
+        train_idx, val_idx, test_idx = bundle.train_val_test_split(
+            seed=7, group_ids=bundle.ids
+        )
         with tempfile.TemporaryDirectory() as tmp_dir:
             manifest = Path(tmp_dir) / "run_manifest.json"
             manifest.write_text("already here", encoding="utf-8")
@@ -199,11 +219,17 @@ class LayerProbeSweepRunnerTests(unittest.TestCase):
             "labels": labels,
         }
         records = [
-            {"id": extraction["sample_ids"][i], "text": f"sample-{i}", "label": labels[i]}
+            {
+                "id": extraction["sample_ids"][i],
+                "text": f"sample-{i}",
+                "label": labels[i],
+            }
             for i in range(len(labels))
         ]
         bundle = ProbingSampleBuilder.from_iterable(records).to_samples(text_key="text")
-        train_idx, val_idx, test_idx = bundle.train_val_test_split(seed=2, group_ids=bundle.ids)
+        train_idx, val_idx, test_idx = bundle.train_val_test_split(
+            seed=2, group_ids=bundle.ids
+        )
         with self.assertRaisesRegex(ValueError, "mutually exclusive"):
             LayerProbeSweepRunner().run(
                 extraction,
@@ -215,7 +241,6 @@ class LayerProbeSweepRunnerTests(unittest.TestCase):
                 manifest_unique_path=True,
             )
 
-
     def test_sweep_runner_with_mean_probe(self) -> None:
         torch.manual_seed(0)
         n = 120
@@ -223,8 +248,7 @@ class LayerProbeSweepRunnerTests(unittest.TestCase):
         labels = (z > 0).long().tolist()
         features_l0 = [torch.randn(5, 3) for _ in range(n)]
         features_l1 = [
-            torch.stack([z[i].expand(3) + 0.05 * torch.randn(3)] * 5)
-            for i in range(n)
+            torch.stack([z[i].expand(3) + 0.05 * torch.randn(3)] * 5) for i in range(n)
         ]
         extraction = {
             "requested": ["layers_output:0", "layers_output:1"],
@@ -240,8 +264,12 @@ class LayerProbeSweepRunnerTests(unittest.TestCase):
         )
         result = LayerProbeSweepRunner(
             probe=ProbeParams(
-                probe_type="mean", epochs=15, learning_rate=0.05,
-                seed=7, weight_decay=0.01, early_stopping_patience=None,
+                probe_type="mean",
+                epochs=15,
+                learning_rate=0.05,
+                seed=7,
+                weight_decay=0.01,
+                early_stopping_patience=None,
             ),
             sweep=SweepParams(
                 activation_targets=[0, 1], batch_size=16, selection_metric="auroc"

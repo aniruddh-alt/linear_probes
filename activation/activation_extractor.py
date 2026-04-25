@@ -89,7 +89,11 @@ class ActivationExtractor:
         # Convert string dtype to torch_dtype for transformers compatibility.
         if "dtype" in model_kwargs:
             dtype_str = model_kwargs.pop("dtype")
-            dtype_map = {"bfloat16": torch.bfloat16, "float16": torch.float16, "float32": torch.float32}
+            dtype_map = {
+                "bfloat16": torch.bfloat16,
+                "float16": torch.float16,
+                "float32": torch.float32,
+            }
             model_kwargs["torch_dtype"] = dtype_map.get(dtype_str, dtype_str)
         self.model = transformer_cls(mc.model_name, **model_kwargs)
         self.batch_size = self.extraction_params.batch_size
@@ -166,12 +170,12 @@ class ActivationExtractor:
                         )
                     if resolved_to_cpu:
                         activation = activation.cpu()
-                    saved[name] = activation.save()
+                    saved[name] = activation.save()  # pyright: ignore[reportAttributeAccessIssue]
                 if needs_input_ids:
                     ids_proxy = self.model.input_ids
                     if resolved_to_cpu:
                         ids_proxy = ids_proxy.cpu()
-                    saved_input_ids = ids_proxy.save()
+                    saved_input_ids = ids_proxy.save()  # pyright: ignore[reportAttributeAccessIssue]
 
             input_ids_tensor: torch.Tensor | None = None
             if needs_input_ids and saved_input_ids is not None:
@@ -222,11 +226,17 @@ class ActivationExtractor:
             total_items = (
                 len(first_out)
                 if isinstance(first_out, list)
-                else int(first_out.shape[0]) if first_out.ndim > 0 else 1
+                else int(first_out.shape[0])
+                if first_out.ndim > 0
+                else 1
             )
             for name in requested[1:]:
                 out = outputs[name]
-                key_items = len(out) if isinstance(out, list) else (int(out.shape[0]) if out.ndim > 0 else 1)
+                key_items = (
+                    len(out)
+                    if isinstance(out, list)
+                    else (int(out.shape[0]) if out.ndim > 0 else 1)
+                )
                 if key_items != total_items:
                     raise ValueError(
                         "Activation outputs have inconsistent sample counts across keys: "

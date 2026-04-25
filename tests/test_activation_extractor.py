@@ -67,7 +67,9 @@ class ActivationExtractorTests(unittest.TestCase):
         )
         self.assertTrue(torch.equal(selected, torch.tensor([12, 22])))
 
-    def test_select_token_position_for_attention_probabilities_uses_query_axis(self) -> None:
+    def test_select_token_position_for_attention_probabilities_uses_query_axis(
+        self,
+    ) -> None:
         tensor = torch.arange(2 * 3 * 4 * 5, dtype=torch.float32).reshape(2, 3, 4, 5)
         selected = ActivationExtractor._select_token_position(
             tensor, token_index=1, kind="attention_probabilities"
@@ -75,7 +77,9 @@ class ActivationExtractorTests(unittest.TestCase):
         self.assertEqual(tuple(selected.shape), (2, 3, 5))
         self.assertTrue(torch.equal(selected, tensor[:, :, 1, :]))
 
-    def test_select_token_position_raises_for_ambiguous_rank4_non_attention(self) -> None:
+    def test_select_token_position_raises_for_ambiguous_rank4_non_attention(
+        self,
+    ) -> None:
         tensor = torch.zeros((2, 3, 4, 5))
         with self.assertRaisesRegex(ValueError, "no unambiguous sequence axis"):
             ActivationExtractor._select_token_position(

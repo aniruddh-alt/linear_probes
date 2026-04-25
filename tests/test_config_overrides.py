@@ -13,7 +13,10 @@ class TestConfigOverrides:
         }
         out = apply_dot_overrides(
             payload,
-            {"probe.learning_rate": "0.001", "split.auto_group_by_id_when_none": "false"},
+            {
+                "probe.learning_rate": "0.001",
+                "split.auto_group_by_id_when_none": "false",
+            },
         )
         assert out["probe"]["learning_rate"] == 0.001
         assert out["split"]["auto_group_by_id_when_none"] is False

@@ -32,16 +32,22 @@ def load_labeled_data() -> tuple[list[dict], list[int]]:
         for line in f:
             row = json.loads(line)
             label_str = row["refusal_label"]
-            label = 1 if "refusal" in label_str and "non-refusal" not in label_str else 0
+            label = (
+                1 if "refusal" in label_str and "non-refusal" not in label_str else 0
+            )
             sid = row["sample_id"]
             prompt = row["original_prompt"]
-            rows.append({
-                "id": sid,
-                "text": prompt,
-                "label": label,
-            })
+            rows.append(
+                {
+                    "id": sid,
+                    "text": prompt,
+                    "label": label,
+                }
+            )
     labels = [r["label"] for r in rows]
-    print(f"Loaded {len(rows)} samples: {sum(labels)} refusal, {len(labels) - sum(labels)} non-refusal")
+    print(
+        f"Loaded {len(rows)} samples: {sum(labels)} refusal, {len(labels) - sum(labels)} non-refusal"
+    )
     return rows, labels
 
 
@@ -52,8 +58,11 @@ def main() -> None:
     builder = ProbingSampleBuilder.from_iterable(rows)
     bundle = builder.to_samples(text_key="text")
     train_idx, val_idx, test_idx = bundle.train_val_test_split(
-        train_fraction=0.7, val_fraction=0.15, test_fraction=0.15,
-        seed=SEED, group_ids=bundle.ids,
+        train_fraction=0.7,
+        val_fraction=0.15,
+        test_fraction=0.15,
+        seed=SEED,
+        group_ids=bundle.ids,
     )
 
     # 2. Extract activations
@@ -83,8 +92,11 @@ def main() -> None:
     )
     result = runner.run(
         extraction,
-        train_indices=train_idx, val_indices=val_idx, test_indices=test_idx,
-        labels=labels, group_ids=bundle.ids,
+        train_indices=train_idx,
+        val_indices=val_idx,
+        test_indices=test_idx,
+        labels=labels,
+        group_ids=bundle.ids,
     )
 
     # 4. Report

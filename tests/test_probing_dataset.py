@@ -20,7 +20,9 @@ class ProbingDatasetTests(unittest.TestCase):
                 labels=[0, 1],
             )
 
-    def test_from_extraction_result_variable_length_2d_creates_sequence_mode(self) -> None:
+    def test_from_extraction_result_variable_length_2d_creates_sequence_mode(
+        self,
+    ) -> None:
         extraction = {
             "activations": {
                 "layers_output:0": [
@@ -97,7 +99,11 @@ class ProbingDatasetTests(unittest.TestCase):
             root = Path(tmp_dir)
             safetensors_path = root / "activations.safetensors"
             save_file(
-                {"layers_output:0": torch.tensor([[1.0, 10.0], [2.0, 20.0], [3.0, 30.0]])},
+                {
+                    "layers_output:0": torch.tensor(
+                        [[1.0, 10.0], [2.0, 20.0], [3.0, 30.0]]
+                    )
+                },
                 str(safetensors_path),
             )
 
@@ -126,11 +132,15 @@ class ProbingDatasetTests(unittest.TestCase):
             self.assertTrue(torch.equal(dataset[2][0], torch.tensor([3.0, 30.0])))
             self.assertEqual(int(dataset[2][1]), 0)
 
-    def test_from_extraction_path_raises_when_extraction_labels_are_partial(self) -> None:
+    def test_from_extraction_path_raises_when_extraction_labels_are_partial(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             manifest_path = Path(tmp_dir) / "manifest.pt"
             safetensors_path = Path(tmp_dir) / "activations.safetensors"
-            save_file({"layers_output:0": torch.tensor([[1.0], [2.0]])}, str(safetensors_path))
+            save_file(
+                {"layers_output:0": torch.tensor([[1.0], [2.0]])}, str(safetensors_path)
+            )
             extraction = {
                 "requested": ["layers_output:0"],
                 "activations": {},
@@ -153,7 +163,9 @@ class ProbingDatasetTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             manifest_path = Path(tmp_dir) / "manifest.pt"
             safetensors_path = Path(tmp_dir) / "activations.safetensors"
-            save_file({"layers_output:0": torch.tensor([[1.0], [2.0]])}, str(safetensors_path))
+            save_file(
+                {"layers_output:0": torch.tensor([[1.0], [2.0]])}, str(safetensors_path)
+            )
             extraction = {
                 "requested": ["layers_output:0"],
                 "activations": {},
@@ -171,7 +183,6 @@ class ProbingDatasetTests(unittest.TestCase):
                     manifest_path,
                     activation_key="layers_output:0",
                 )
-
 
 
 class SequenceModeProbingDatasetTests(unittest.TestCase):
@@ -202,7 +213,9 @@ class SequenceModeProbingDatasetTests(unittest.TestCase):
     def test_sequence_collate_pads_to_max_len(self) -> None:
         features = [torch.randn(3, 4), torch.randn(5, 4)]
         ds = ProbingDataset(features=features, labels=[0, 1])
-        batch = cast(list[tuple[torch.Tensor, torch.Tensor, torch.Tensor]], [ds[0], ds[1]])
+        batch = cast(
+            list[tuple[torch.Tensor, torch.Tensor, torch.Tensor]], [ds[0], ds[1]]
+        )
         padded_features, _labels, mask = sequence_collate_fn(batch)
         self.assertEqual(padded_features.shape, (2, 5, 4))
         self.assertEqual(mask.shape, (2, 5))

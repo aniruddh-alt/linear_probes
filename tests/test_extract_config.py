@@ -1,4 +1,5 @@
 """Tests for ExtractConfig."""
+
 from __future__ import annotations
 
 from core.configs.extract_config import ExtractConfig
@@ -16,12 +17,17 @@ class TestExtractConfig:
         assert cfg.io.output_dir == "artifacts"
 
     def test_from_dict(self):
-        cfg = ExtractConfig.from_dict({
-            "run_name": "refusal_extract",
-            "model": {"model_name": "Qwen/Qwen2.5-1.5B-Instruct"},
-            "extraction": {"batch_size": 4, "token_index": -1},
-            "io": {"input_path": "artifacts/labeled.jsonl", "output_dir": "artifacts/"},
-        })
+        cfg = ExtractConfig.from_dict(
+            {
+                "run_name": "refusal_extract",
+                "model": {"model_name": "Qwen/Qwen2.5-1.5B-Instruct"},
+                "extraction": {"batch_size": 4, "token_index": -1},
+                "io": {
+                    "input_path": "artifacts/labeled.jsonl",
+                    "output_dir": "artifacts/",
+                },
+            }
+        )
         assert cfg.model.model_name == "Qwen/Qwen2.5-1.5B-Instruct"
         assert cfg.extraction.batch_size == 4
         assert cfg.io.input_path == "artifacts/labeled.jsonl"

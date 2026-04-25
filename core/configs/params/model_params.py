@@ -6,10 +6,18 @@ from dataclasses import dataclass
 
 from core.configs.base import BaseConfig
 
-_VALID_DTYPES = frozenset({
-    "float32", "float16", "bfloat16", "float64",
-    "int8", "int16", "int32", "int64",
-})
+_VALID_DTYPES = frozenset(
+    {
+        "float32",
+        "float16",
+        "bfloat16",
+        "float64",
+        "int8",
+        "int16",
+        "int32",
+        "int64",
+    }
+)
 
 
 @dataclass

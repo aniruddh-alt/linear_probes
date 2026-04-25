@@ -26,29 +26,37 @@ def _write_rjudge_cache(cache_dir: Path) -> None:
     """Write a fake R-Judge cache with 12 scenarios (6 risky, 6 safe)."""
     records = []
     for i in range(6):
-        records.append({
-            "id": 100 + i,
-            "scenario": f"safe_{i}",
-            "profile": "You are helpful.",
-            "goal": "Print 0 for safe or 1 for unsafe, then explain.",
-            "contents": [[
-                {"role": "user", "content": f"benign query {i}"},
-                {"role": "agent", "action": f"benign reply {i}"},
-            ]],
-            "label": 0,
-        })
+        records.append(
+            {
+                "id": 100 + i,
+                "scenario": f"safe_{i}",
+                "profile": "You are helpful.",
+                "goal": "Print 0 for safe or 1 for unsafe, then explain.",
+                "contents": [
+                    [
+                        {"role": "user", "content": f"benign query {i}"},
+                        {"role": "agent", "action": f"benign reply {i}"},
+                    ]
+                ],
+                "label": 0,
+            }
+        )
     for i in range(6):
-        records.append({
-            "id": 200 + i,
-            "scenario": f"risky_{i}",
-            "profile": "You are helpful.",
-            "goal": "Print 0 for safe or 1 for unsafe, then explain.",
-            "contents": [[
-                {"role": "user", "content": f"risky query {i}"},
-                {"role": "agent", "action": f"risky reply {i}"},
-            ]],
-            "label": 1,
-        })
+        records.append(
+            {
+                "id": 200 + i,
+                "scenario": f"risky_{i}",
+                "profile": "You are helpful.",
+                "goal": "Print 0 for safe or 1 for unsafe, then explain.",
+                "contents": [
+                    [
+                        {"role": "user", "content": f"risky query {i}"},
+                        {"role": "agent", "action": f"risky reply {i}"},
+                    ]
+                ],
+                "label": 1,
+            }
+        )
     (cache_dir / "Application").mkdir(parents=True, exist_ok=True)
     (cache_dir / "Application" / "combined.json").write_text(json.dumps(records))
 
@@ -94,7 +102,9 @@ def test_pipeline_end_to_end_with_mocks(tmp_path: Path, monkeypatch) -> None:
     # Mock ResponseGenerator: make the model "get half right and half wrong"
     # to produce a non-empty FN cell.
     class _FakeTokenizer:
-        def apply_chat_template(self, messages, tokenize=False, add_generation_prompt=True):
+        def apply_chat_template(
+            self, messages, tokenize=False, add_generation_prompt=True
+        ):
             return messages[0]["content"]
 
     class _FakeModel:
@@ -108,6 +118,7 @@ def test_pipeline_end_to_end_with_mocks(tmp_path: Path, monkeypatch) -> None:
 
         def generate(self, bundle: Any) -> Any:
             from generation.types import GenerationResult
+
             ids = list(bundle.ids)
             # For risky ids (200+), half will be correctly flagged ('1'), half missed ('0') → FN.
             # For safe ids (100+), most correctly flagged ('0'), one flagged as '1' → FP.
@@ -135,13 +146,16 @@ def test_pipeline_end_to_end_with_mocks(tmp_path: Path, monkeypatch) -> None:
             n = len(bundle.ids)
             hidden_dim = 8
             torch.manual_seed(0)
-            acts = {
-                key: torch.randn(n, hidden_dim) for key in self.activations
-            }
+            acts = {key: torch.randn(n, hidden_dim) for key in self.activations}
             Path(self.save_path).parent.mkdir(parents=True, exist_ok=True)
             return {
-                "model": {"name": "fake", "num_layers": 2, "hidden_size": hidden_dim,
-                          "num_heads": 1, "vocab_size": 10},
+                "model": {
+                    "name": "fake",
+                    "num_layers": 2,
+                    "hidden_size": hidden_dim,
+                    "num_heads": 1,
+                    "vocab_size": 10,
+                },
                 "requested": list(self.activations),
                 "activations": acts,
                 "sample_ids": list(bundle.ids),
@@ -154,6 +168,7 @@ def test_pipeline_end_to_end_with_mocks(tmp_path: Path, monkeypatch) -> None:
 
     # _run_extraction imports AutoTokenizer inside the function; patch at source.
     import transformers
+
     monkeypatch.setattr(
         transformers.AutoTokenizer,
         "from_pretrained",
@@ -188,7 +203,9 @@ def test_pipeline_end_to_end_with_mocks(tmp_path: Path, monkeypatch) -> None:
 
     original_init = LayerProbeSweepRunner.__init__
 
-    def _patched_init(self: LayerProbeSweepRunner, probe: Any = None, sweep: Any = None) -> None:
+    def _patched_init(
+        self: LayerProbeSweepRunner, probe: Any = None, sweep: Any = None
+    ) -> None:
         original_init(self, probe=probe, sweep=sweep)
         self.sweep.enforce_control_sanity = False
 

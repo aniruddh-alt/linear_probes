@@ -1,4 +1,5 @@
 """Tests for ProbeConfig."""
+
 from __future__ import annotations
 
 from core.configs.probe_config import ProbeConfig
@@ -17,11 +18,16 @@ class TestProbeConfig:
         assert cfg.output.save_plots is True
 
     def test_from_dict(self):
-        cfg = ProbeConfig.from_dict({
-            "run_name": "refusal_probe",
-            "probe": {"learning_rate": 0.01, "epochs": 20},
-            "io": {"input_path": "artifacts/activations/", "output_dir": "artifacts/"},
-        })
+        cfg = ProbeConfig.from_dict(
+            {
+                "run_name": "refusal_probe",
+                "probe": {"learning_rate": 0.01, "epochs": 20},
+                "io": {
+                    "input_path": "artifacts/activations/",
+                    "output_dir": "artifacts/",
+                },
+            }
+        )
         assert cfg.run_name == "refusal_probe"
         assert cfg.probe.learning_rate == 0.01
         assert cfg.io.input_path == "artifacts/activations/"
@@ -36,12 +42,14 @@ class TestProbeConfig:
 
     def test_probe_params_has_probe_type_field(self):
         from core.configs import ProbeParams
+
         params = ProbeParams()
         assert params.probe_type == "linear"
         assert params.probe_kwargs == {}
 
     def test_probe_params_accepts_custom_probe_type(self):
         from core.configs import ProbeParams
+
         params = ProbeParams(probe_type="attention", probe_kwargs={"foo": 1})
         assert params.probe_type == "attention"
         assert params.probe_kwargs == {"foo": 1}
