@@ -39,7 +39,10 @@ class DiffMeansTypesTests(unittest.TestCase):
             best_score=0.9,
             best_direction=direction,
             test_metrics={"auroc": 0.88},
-            controls={"real": {"auroc_mean": 0.9}, "shuffled_labels": {"auroc_mean": 0.52}},
+            controls={
+                "real": {"auroc_mean": 0.9},
+                "shuffled_labels": {"auroc_mean": 0.52},
+            },
             split_sizes=(100, 30, 30),
             dataset_fingerprint="abc123",
             manifest_path=None,

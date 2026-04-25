@@ -20,7 +20,10 @@ class TestConfigAliases:
     def test_resolve_passthrough_when_not_alias(self, tmp_path):
         aliases_file = tmp_path / "aliases.yaml"
         aliases_file.write_text("quickstart: some/path.yaml\n", encoding="utf-8")
-        assert resolve_config_alias("my/custom/config.yaml", aliases_file) == "my/custom/config.yaml"
+        assert (
+            resolve_config_alias("my/custom/config.yaml", aliases_file)
+            == "my/custom/config.yaml"
+        )
 
     def test_resolve_passthrough_when_no_aliases_file(self, tmp_path):
         missing = tmp_path / "nonexistent.yaml"

@@ -69,22 +69,41 @@ def format_scenario_prompt(record: dict[str, Any]) -> str:
 # We cache a flattened combined.json per category to avoid re-fetching the directory listing.
 _CATEGORY_FILES: dict[str, tuple[str, ...]] = {
     "Application": (
-        "chatbot.json", "dh_app.json", "ds_app.json", "mail.json",
-        "medical.json", "phone.json", "productivity.json", "socialapp.json",
+        "chatbot.json",
+        "dh_app.json",
+        "ds_app.json",
+        "mail.json",
+        "medical.json",
+        "phone.json",
+        "productivity.json",
+        "socialapp.json",
     ),
     "Finance": (
-        "bitcoin.json", "dh_finance.json", "ds_finance.json",
-        "moneymanagement.json", "webshop.json",
+        "bitcoin.json",
+        "dh_finance.json",
+        "ds_finance.json",
+        "moneymanagement.json",
+        "webshop.json",
     ),
     "IoT": (
-        "household.json", "phone_iot.json", "trafficdispatch.json",
+        "household.json",
+        "phone_iot.json",
+        "trafficdispatch.json",
     ),
     "Program": (
-        "code_agentmonitor.json", "dh_program.json", "ds_program.json",
-        "phone_program.json", "security.json", "software.json", "terminal.json",
+        "code_agentmonitor.json",
+        "dh_program.json",
+        "ds_program.json",
+        "phone_program.json",
+        "security.json",
+        "software.json",
+        "terminal.json",
     ),
     "Web": (
-        "dh_web.json", "ds_web.json", "webbrowser.json", "websearch.json",
+        "dh_web.json",
+        "ds_web.json",
+        "webbrowser.json",
+        "websearch.json",
     ),
 }
 
@@ -156,11 +175,13 @@ def load_rjudge_scenarios(
             github_base_url=github_base_url,
         )
         for rec in records:
-            out.append({
-                "id": f"{category}-{rec['id']}",
-                "scenario": rec.get("scenario", ""),
-                "category": category,
-                "formatted_prompt": format_scenario_prompt(rec),
-                "label": int(rec["label"]),
-            })
+            out.append(
+                {
+                    "id": f"{category}-{rec['id']}",
+                    "scenario": rec.get("scenario", ""),
+                    "category": category,
+                    "formatted_prompt": format_scenario_prompt(rec),
+                    "label": int(rec["label"]),
+                }
+            )
     return out

@@ -56,7 +56,11 @@ class BinaryProbeTrainer:
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | None]:
         if len(batch) == 3:
             features, labels, mask = batch
-            return features.to(self.device), labels.to(self.device), mask.to(self.device)
+            return (
+                features.to(self.device),
+                labels.to(self.device),
+                mask.to(self.device),
+            )
         features, labels = batch[0], batch[1]
         return features.to(self.device), labels.to(self.device), None
 
@@ -107,7 +111,11 @@ class BinaryProbeTrainer:
             if val_loader is not None:
                 metrics = self.evaluate(val_loader)
                 loss_value = metrics["loss"]
-                val_loss = float(loss_value) if isinstance(loss_value, (int, float)) else loss_value[0]
+                val_loss = (
+                    float(loss_value)
+                    if isinstance(loss_value, (int, float))
+                    else loss_value[0]
+                )
                 history["val_loss"].append(val_loss)
                 history["val_accuracy"].append(metrics["accuracy"])
                 if self.config.early_stopping_patience is not None:
@@ -267,15 +275,21 @@ def run_probe_with_controls(
         run_config = replace(base_config, seed=int(seed))
         model = build_probe(run_config.probe_type, input_dim, **run_config.probe_kwargs)
         trainer = BinaryProbeTrainer(model=model, config=run_config)
-        trainer.fit(_tensor_loader(train_x, train_y, train_loader.batch_size, train_mask))
+        trainer.fit(
+            _tensor_loader(train_x, train_y, train_loader.batch_size, train_mask)
+        )
         real_runs.append(
-            trainer.evaluate(_tensor_loader(eval_x, eval_y, eval_loader.batch_size, eval_mask))
+            trainer.evaluate(
+                _tensor_loader(eval_x, eval_y, eval_loader.batch_size, eval_mask)
+            )
         )
 
         generator = torch.Generator().manual_seed(int(seed) + 1_000)
         permutation = torch.randperm(len(train_y), generator=generator)
         shuffled_y = train_y[permutation]
-        shuffled_model = build_probe(run_config.probe_type, input_dim, **run_config.probe_kwargs)
+        shuffled_model = build_probe(
+            run_config.probe_type, input_dim, **run_config.probe_kwargs
+        )
         shuffled_trainer = BinaryProbeTrainer(model=shuffled_model, config=run_config)
         shuffled_trainer.fit(
             _tensor_loader(train_x, shuffled_y, train_loader.batch_size, train_mask)
@@ -290,7 +304,9 @@ def run_probe_with_controls(
             train_x.shape, generator=generator, dtype=train_x.dtype
         )
         rand_eval_x = torch.randn(eval_x.shape, generator=generator, dtype=eval_x.dtype)
-        random_model = build_probe(run_config.probe_type, input_dim, **run_config.probe_kwargs)
+        random_model = build_probe(
+            run_config.probe_type, input_dim, **run_config.probe_kwargs
+        )
         random_trainer = BinaryProbeTrainer(model=random_model, config=run_config)
         random_trainer.fit(
             _tensor_loader(rand_train_x, train_y, train_loader.batch_size, train_mask)
@@ -353,9 +369,11 @@ def _loader_to_tensors(
             features.append(batch[0].detach().cpu().float())
             labels.append(batch[1].detach().cpu().long())
     if not features:
-        return torch.empty((0, 0), dtype=torch.float32), torch.empty(
-            (0,), dtype=torch.long
-        ), None
+        return (
+            torch.empty((0, 0), dtype=torch.float32),
+            torch.empty((0,), dtype=torch.long),
+            None,
+        )
     if has_mask and features[0].ndim == 3:
         # Sequence mode: pad all batches to the same max seq length before catting
         max_seq = max(f.shape[1] for f in features)
@@ -377,7 +395,9 @@ def _loader_to_tensors(
 
 
 def _tensor_loader(
-    features: torch.Tensor, labels: torch.Tensor, batch_size: int | None,
+    features: torch.Tensor,
+    labels: torch.Tensor,
+    batch_size: int | None,
     mask: torch.Tensor | None = None,
     shuffle: bool = True,
 ) -> DataLoader:

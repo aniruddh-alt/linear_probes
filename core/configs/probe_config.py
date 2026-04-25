@@ -1,4 +1,5 @@
 """Config for the probe_sweep stage."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

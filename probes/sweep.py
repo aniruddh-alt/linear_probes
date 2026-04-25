@@ -87,19 +87,25 @@ class LayerProbeSweepRunner:
                     dataset, train_indices, self.probe.pca_components
                 )
             train_loader, val_loader, test_loader = self._build_loaders(
-                dataset, train_indices, val_indices, test_indices,
+                dataset,
+                train_indices,
+                val_indices,
+                test_indices,
                 sequence_mode=dataset.sequence_mode,
             )
-            input_dim = dataset[0][0].shape[-1] if dataset.sequence_mode else dataset[0][0].numel()
-            model = build_probe(self.probe.probe_type, input_dim, **self.probe.probe_kwargs)
+            input_dim = (
+                dataset[0][0].shape[-1]
+                if dataset.sequence_mode
+                else dataset[0][0].numel()
+            )
+            model = build_probe(
+                self.probe.probe_type, input_dim, **self.probe.probe_kwargs
+            )
             trainer = BinaryProbeTrainer(model=model, config=self.probe)
             history = trainer.fit(train_loader, val_loader=val_loader)
             val_metrics = trainer.evaluate(val_loader)
-            direction = self._normalized_direction(trainer)
-            bias: float | None = None
-            linear = getattr(trainer.model, 'linear', None)
-            if linear is not None and hasattr(linear, 'bias') and linear.bias is not None:
-                bias = float(linear.bias.detach().cpu().item())
+            direction = getattr(trainer.model, "direction", None)
+            bias = getattr(trainer.model, "bias", None)
             trained[key] = TrainedLayerProbe(
                 activation_key=key,
                 trainer=trainer,
@@ -122,12 +128,17 @@ class LayerProbeSweepRunner:
                 first_dataset, train_indices, self.probe.pca_components
             )
         train_loader, _, test_loader = self._build_loaders(
-            first_dataset, train_indices, val_indices, test_indices,
+            first_dataset,
+            train_indices,
+            val_indices,
+            test_indices,
             sequence_mode=first_dataset.sequence_mode,
         )
         test_metrics = best_probe.trainer.evaluate(test_loader)
         controls_result = run_probe_with_controls(
-            input_dim=first_dataset[0][0].shape[-1] if first_dataset.sequence_mode else first_dataset[0][0].numel(),
+            input_dim=first_dataset[0][0].shape[-1]
+            if first_dataset.sequence_mode
+            else first_dataset[0][0].numel(),
             train_loader=train_loader,
             eval_loader=test_loader,
             config=self.probe,
@@ -244,15 +255,21 @@ class LayerProbeSweepRunner:
         test_dataset = Subset(dataset, test_idx)
         collate_fn = sequence_collate_fn if sequence_mode else None
         train_loader = DataLoader(
-            train_dataset, batch_size=self.sweep.batch_size, shuffle=True,
+            train_dataset,
+            batch_size=self.sweep.batch_size,
+            shuffle=True,
             collate_fn=collate_fn,
         )
         val_loader = DataLoader(
-            val_dataset, batch_size=self.sweep.batch_size, shuffle=False,
+            val_dataset,
+            batch_size=self.sweep.batch_size,
+            shuffle=False,
             collate_fn=collate_fn,
         )
         test_loader = DataLoader(
-            test_dataset, batch_size=self.sweep.batch_size, shuffle=False,
+            test_dataset,
+            batch_size=self.sweep.batch_size,
+            shuffle=False,
             collate_fn=collate_fn,
         )
         return train_loader, val_loader, test_loader
@@ -277,17 +294,6 @@ class LayerProbeSweepRunner:
         dataset.features = transformed.to(dataset.features.dtype)
         return dataset
 
-    @staticmethod
-    def _normalized_direction(trainer: BinaryProbeTrainer) -> torch.Tensor | None:
-        linear = getattr(trainer.model, 'linear', None)
-        if linear is None:
-            return None
-        weight = linear.weight.detach().cpu().reshape(-1).float()
-        norm = float(torch.linalg.vector_norm(weight).item())
-        if norm == 0.0:
-            return weight
-        return weight / norm
-
     def _select_best_layer(
         self, probes: dict[str, TrainedLayerProbe]
     ) -> tuple[str, float]:
@@ -306,7 +312,9 @@ class LayerProbeSweepRunner:
         return best_key, best_score
 
     @staticmethod
-    def _metric_value(metrics: dict[str, float | tuple[float, float]], name: str) -> float:
+    def _metric_value(
+        metrics: dict[str, float | tuple[float, float]], name: str
+    ) -> float:
         value = metrics.get(name)
         if value is None:
             value = metrics.get(name.lower())

@@ -23,8 +23,12 @@ class ProbeManifestAndAnalyzerTests(unittest.TestCase):
     def test_dataset_fingerprint_is_stable_and_sensitive(self) -> None:
         sample_ids = ["a", "b", "c"]
         labels = [0, 1, 0]
-        fingerprint_a = compute_dataset_fingerprint(sample_ids=sample_ids, labels=labels)
-        fingerprint_b = compute_dataset_fingerprint(sample_ids=sample_ids, labels=labels)
+        fingerprint_a = compute_dataset_fingerprint(
+            sample_ids=sample_ids, labels=labels
+        )
+        fingerprint_b = compute_dataset_fingerprint(
+            sample_ids=sample_ids, labels=labels
+        )
         fingerprint_c = compute_dataset_fingerprint(
             sample_ids=sample_ids, labels=[1, 1, 0]
         )
@@ -97,7 +101,11 @@ class ProbeManifestAndAnalyzerTests(unittest.TestCase):
     def test_manifest_round_trip_contains_expected_repro_fields(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             manifest_path = Path(tmp_dir) / "manifest.json"
-            split_indices: dict[str, Sequence[int]] = {"train": [4, 0, 2], "val": [1], "test": [3, 5]}
+            split_indices: dict[str, Sequence[int]] = {
+                "train": [4, 0, 2],
+                "val": [1],
+                "test": [3, 5],
+            }
             write_run_manifest(
                 manifest_path=manifest_path,
                 config={"probe": ProbeParams(), "sweep": SweepParams()},
@@ -118,13 +126,15 @@ class ProbeManifestAndAnalyzerTests(unittest.TestCase):
             self.assertEqual(payload["selected_key"], "layers_output:1")
             self.assertEqual(payload["split_sizes"], {"train": 3, "val": 1, "test": 2})
             self.assertEqual(
-                payload["split_index_hashes"]["train"], hash_indices(split_indices["train"])
+                payload["split_index_hashes"]["train"],
+                hash_indices(split_indices["train"]),
             )
             self.assertEqual(
                 payload["split_index_hashes"]["val"], hash_indices(split_indices["val"])
             )
             self.assertEqual(
-                payload["split_index_hashes"]["test"], hash_indices(split_indices["test"])
+                payload["split_index_hashes"]["test"],
+                hash_indices(split_indices["test"]),
             )
 
     @patch("matplotlib.pyplot.savefig")

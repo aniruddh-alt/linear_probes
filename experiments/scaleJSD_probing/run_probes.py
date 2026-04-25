@@ -32,9 +32,11 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
 import csv
+import json
 from pathlib import Path
+from typing import Any
+
 import torch
 
 from activation import ActivationExtractor
@@ -42,15 +44,21 @@ from core.configs import ExtractionParams, ModelParams, ProbeParams, SweepParams
 from dataset import ProbingSampleBuilder
 from probes import LayerProbeSweepRunner
 
-
 # ── Model config ─────────────────────────────────────────────────────────────
 
 MODEL_LAYERS = {
-    "pythia-70m": 6, "pythia-160m": 12, "pythia-410m": 24,
-    "pythia-1b": 16, "pythia-1.4b": 24, "pythia-2.8b": 32,
-    "pythia-6.9b": 32, "pythia-12b": 36,
-    "olmo-1b": 16, "olmo-7b": 32,
-    "llama-3": 32, "llama-2": 32,
+    "pythia-70m": 6,
+    "pythia-160m": 12,
+    "pythia-410m": 24,
+    "pythia-1b": 16,
+    "pythia-1.4b": 24,
+    "pythia-2.8b": 32,
+    "pythia-6.9b": 32,
+    "pythia-12b": 36,
+    "olmo-1b": 16,
+    "olmo-7b": 32,
+    "llama-3": 32,
+    "llama-2": 32,
 }
 
 DATASET_NAMES = ["emotion", "medical", "legal", "scientific", "verb"]
@@ -71,6 +79,7 @@ def infer_num_layers(model_id: str) -> int:
 
 
 # ── Data loading ─────────────────────────────────────────────────────────────
+
 
 def find_dataset(dataset_dir: Path, name: str) -> Path | None:
     for pat in DATASET_PATTERNS:
@@ -93,12 +102,18 @@ def load_all_pairs(dataset_dir: Path) -> list[dict[str, Any]]:
                 row = json.loads(line.strip())
                 row["domain"] = name
                 all_pairs.append(row)
-        print(f"  Loaded {name}: {sum(1 for p in all_pairs if p['domain'] == name)} pairs")
-    print(f"  Total: {len(all_pairs)} pairs across {len(set(p['domain'] for p in all_pairs))} domains")
+        print(
+            f"  Loaded {name}: {sum(1 for p in all_pairs if p['domain'] == name)} pairs"
+        )
+    print(
+        f"  Total: {len(all_pairs)} pairs across {len(set(p['domain'] for p in all_pairs))} domains"
+    )
     return all_pairs
 
 
-def build_frequency_samples(pairs: list[dict]) -> tuple[list[dict], list[int], list[str]]:
+def build_frequency_samples(
+    pairs: list[dict],
+) -> tuple[list[dict], list[int], list[str]]:
     """Build samples for frequency probe: high=1, low=0.
 
     Text is truncated at [TERM] so token_index=-1 captures the target token.
@@ -113,21 +128,20 @@ def build_frequency_samples(pairs: list[dict]) -> tuple[list[dict], list[int], l
 
         # Find the [TERM] position and take text up to end of [TERM]
         term_pos = template.find("[TERM]")
-        if term_pos >= 0:
-            prefix = template[:term_pos]
-        else:
-            prefix = template + " "
+        prefix = template[:term_pos] if term_pos >= 0 else template + " "
 
         for ngram, label in [
             (pair["high_freq_ngram"], 1),
             (pair["low_freq_ngram"], 0),
         ]:
             text = prefix + ngram
-            records.append({
-                "id": f"{pair_id}_{['low', 'high'][label]}",
-                "text": text,
-                "label": label,
-            })
+            records.append(
+                {
+                    "id": f"{pair_id}_{['low', 'high'][label]}",
+                    "text": text,
+                    "label": label,
+                }
+            )
             labels.append(label)
             group_ids.append(pair_id)
 
@@ -135,7 +149,8 @@ def build_frequency_samples(pairs: list[dict]) -> tuple[list[dict], list[int], l
 
 
 def build_semantic_samples(
-    pairs: list[dict], target_domain: str,
+    pairs: list[dict],
+    target_domain: str,
 ) -> tuple[list[dict], list[int], list[str]]:
     """Build samples for semantic probe: target_domain=1, others=0.
 
@@ -152,18 +167,17 @@ def build_semantic_samples(
         label = 1 if pair["domain"] == target_domain else 0
 
         term_pos = template.find("[TERM]")
-        if term_pos >= 0:
-            prefix = template[:term_pos]
-        else:
-            prefix = template + " "
+        prefix = template[:term_pos] if term_pos >= 0 else template + " "
 
         for ngram in [pair["high_freq_ngram"], pair["low_freq_ngram"]]:
             text = prefix + ngram
-            records.append({
-                "id": f"{pair_id}_{ngram}",
-                "text": text,
-                "label": label,
-            })
+            records.append(
+                {
+                    "id": f"{pair_id}_{ngram}",
+                    "text": text,
+                    "label": label,
+                }
+            )
             labels.append(label)
             group_ids.append(pair_id)
 
@@ -171,6 +185,7 @@ def build_semantic_samples(
 
 
 # ── Extraction & probing ────────────────────────────────────────────────────
+
 
 def extract_activations(
     records: list[dict],
@@ -216,8 +231,11 @@ def run_probe_sweep(
 
     train_idx, val_idx, test_idx = stratified_train_val_test_split(
         labels=labels,
-        train_fraction=0.7, val_fraction=0.15, test_fraction=0.15,
-        seed=SEED, group_ids=group_ids,
+        train_fraction=0.7,
+        val_fraction=0.15,
+        test_fraction=0.15,
+        seed=SEED,
+        group_ids=group_ids,
     )
 
     targets = [f"layers_output:{i}" for i in range(num_layers)]
@@ -256,24 +274,28 @@ def run_probe_sweep(
             auroc = auroc[0]
         if isinstance(acc, tuple):
             acc = acc[0]
-        rows.append({
-            "probe": probe_name,
-            "layer": layer_idx,
-            "val_auroc": auroc,
-            "val_accuracy": acc,
-        })
+        rows.append(
+            {
+                "probe": probe_name,
+                "layer": layer_idx,
+                "val_auroc": auroc,
+                "val_accuracy": acc,
+            }
+        )
 
     csv_path = output_dir / f"{probe_name}_layers.csv"
     with open(csv_path, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["probe", "layer", "val_auroc", "val_accuracy"])
+        writer = csv.DictWriter(
+            f, fieldnames=["probe", "layer", "val_auroc", "val_accuracy"]
+        )
         writer.writeheader()
         writer.writerows(rows)
 
     # Print summary
-    print(f"\n{'='*50}")
+    print(f"\n{'=' * 50}")
     print(f"  {probe_name}: best={result.best_key} (auroc={result.best_score:.4f})")
     print(f"  Test: {result.test_metrics}")
-    print(f"{'='*50}")
+    print(f"{'=' * 50}")
     for key, p in result.probes.items():
         auroc = p.val_metrics.get("auroc", 0)
         if isinstance(auroc, tuple):
@@ -285,16 +307,28 @@ def run_probe_sweep(
 
 # ── Main ─────────────────────────────────────────────────────────────────────
 
+
 def main():
-    p = argparse.ArgumentParser(description="ScaleJSD linear probes for frequency & semantic category")
+    p = argparse.ArgumentParser(
+        description="ScaleJSD linear probes for frequency & semantic category"
+    )
     p.add_argument("--model", default="EleutherAI/pythia-70m-deduped")
     p.add_argument("--revision", default="step143000")
-    p.add_argument("--dataset-dir", required=True, help="Path to ScaleJSD filtered JSONL dir")
+    p.add_argument(
+        "--dataset-dir", required=True, help="Path to ScaleJSD filtered JSONL dir"
+    )
     p.add_argument("--output-dir", required=True)
-    p.add_argument("--probe", choices=["frequency", "semantic", "all"], default="all",
-                   help="Which probes to run")
-    p.add_argument("--skip-extraction", action="store_true",
-                   help="Reuse cached activations from output-dir")
+    p.add_argument(
+        "--probe",
+        choices=["frequency", "semantic", "all"],
+        default="all",
+        help="Which probes to run",
+    )
+    p.add_argument(
+        "--skip-extraction",
+        action="store_true",
+        help="Reuse cached activations from output-dir",
+    )
     p.add_argument("--batch-size", type=int, default=4)
     p.add_argument("--dtype", default="float16")
     p.add_argument("--device", default=None, help="Override device (auto-detected)")
@@ -317,7 +351,9 @@ def main():
 
     # Build frequency samples (used for extraction too — covers all pairs)
     freq_records, freq_labels, freq_group_ids = build_frequency_samples(pairs)
-    print(f"\nFrequency samples: {len(freq_records)} ({sum(freq_labels)} high, {len(freq_labels) - sum(freq_labels)} low)")
+    print(
+        f"\nFrequency samples: {len(freq_records)} ({sum(freq_labels)} high, {len(freq_labels) - sum(freq_labels)} low)"
+    )
 
     # Extract activations (shared across all probes since same text)
     act_path = output_dir / "activations"
@@ -325,7 +361,7 @@ def main():
         print(f"\nLoading cached activations from {act_path}")
         extraction = torch.load(act_path / "extraction.pt", weights_only=False)
     else:
-        print(f"\nExtracting activations...")
+        print("\nExtracting activations...")
         extraction = extract_activations(
             records=freq_records,
             model_name=args.model,
@@ -342,9 +378,9 @@ def main():
 
     # ── Frequency probe ──────────────────────────────────────────────────
     if args.probe in ("frequency", "all"):
-        print(f"\n{'#'*50}")
-        print(f"  FREQUENCY PROBE (high=1, low=0)")
-        print(f"{'#'*50}")
+        print(f"\n{'#' * 50}")
+        print("  FREQUENCY PROBE (high=1, low=0)")
+        print(f"{'#' * 50}")
         run_probe_sweep(
             extraction=extraction,
             labels=freq_labels,
@@ -361,9 +397,9 @@ def main():
             _, sem_labels, sem_group_ids = build_semantic_samples(pairs, domain)
             n_pos = sum(sem_labels)
             n_neg = len(sem_labels) - n_pos
-            print(f"\n{'#'*50}")
+            print(f"\n{'#' * 50}")
             print(f"  SEMANTIC PROBE: {domain} vs rest ({n_pos} pos, {n_neg} neg)")
-            print(f"{'#'*50}")
+            print(f"{'#' * 50}")
 
             if n_pos < 10:
                 print(f"  SKIP: too few positive samples ({n_pos})")
@@ -389,7 +425,9 @@ def main():
 
         summary_path = output_dir / "all_probes_summary.csv"
         with open(summary_path, "w", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=["probe", "layer", "val_auroc", "val_accuracy"])
+            writer = csv.DictWriter(
+                f, fieldnames=["probe", "layer", "val_auroc", "val_accuracy"]
+            )
             writer.writeheader()
             writer.writerows(combined)
         print(f"\nCombined summary: {summary_path} ({len(combined)} rows)")

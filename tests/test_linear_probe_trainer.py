@@ -23,11 +23,15 @@ class LinearProbeTrainerTests(unittest.TestCase):
         torch.manual_seed(0)
         features = torch.randn(128, 4)
         labels = (features[:, 0] > 0).long()
-        loader = DataLoader(TensorDataset(features, labels), batch_size=32, shuffle=True)
+        loader = DataLoader(
+            TensorDataset(features, labels), batch_size=32, shuffle=True
+        )
 
         trainer = BinaryLinearProbeTrainer(
             input_dim=4,
-            config=ProbeParams(epochs=25, learning_rate=0.1, early_stopping_patience=None),
+            config=ProbeParams(
+                epochs=25, learning_rate=0.1, early_stopping_patience=None
+            ),
         )
         history = trainer.fit(loader, val_loader=loader)
         metrics = trainer.evaluate(loader)
@@ -41,7 +45,9 @@ class LinearProbeTrainerTests(unittest.TestCase):
         torch.manual_seed(0)
         features = torch.randn(64, 3)
         labels = (features[:, 0] > 0).long()
-        loader = DataLoader(TensorDataset(features, labels), batch_size=16, shuffle=True)
+        loader = DataLoader(
+            TensorDataset(features, labels), batch_size=16, shuffle=True
+        )
 
         result = run_probe_with_controls(
             input_dim=3,
@@ -73,9 +79,12 @@ class GenericProbeTrainerTests(unittest.TestCase):
         loader = DataLoader(dataset, batch_size=16, shuffle=True)
 
         model = build_probe("attention", input_dim=4)
-        trainer = BinaryProbeTrainer(model=model, config=ProbeParams(
-            epochs=20, learning_rate=0.01, early_stopping_patience=None
-        ))
+        trainer = BinaryProbeTrainer(
+            model=model,
+            config=ProbeParams(
+                epochs=20, learning_rate=0.01, early_stopping_patience=None
+            ),
+        )
         trainer.fit(loader, val_loader=loader)
         metrics = trainer.evaluate(loader)
         self.assertIn("auroc", metrics)
@@ -84,11 +93,16 @@ class GenericProbeTrainerTests(unittest.TestCase):
         torch.manual_seed(0)
         features = torch.randn(64, 4)
         labels = (features[:, 0] > 0).long()
-        loader = DataLoader(TensorDataset(features, labels), batch_size=16, shuffle=True)
+        loader = DataLoader(
+            TensorDataset(features, labels), batch_size=16, shuffle=True
+        )
 
-        trainer = BinaryLinearProbeTrainer(input_dim=4, config=ProbeParams(
-            epochs=10, learning_rate=0.1, early_stopping_patience=None
-        ))
+        trainer = BinaryLinearProbeTrainer(
+            input_dim=4,
+            config=ProbeParams(
+                epochs=10, learning_rate=0.1, early_stopping_patience=None
+            ),
+        )
         trainer.fit(loader, val_loader=loader)
         metrics = trainer.evaluate(loader)
         self.assertGreater(_scalar(metrics["accuracy"]), 0.8)

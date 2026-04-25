@@ -50,7 +50,7 @@ BATCH_SIZE = 2
 
 # (cell, mode, alpha, layers_tag, layers_list)
 SWEEPS: list[tuple[str, str, float, str, list[int]]] = [
-    ("TP", "project_subtract", 1.0, "L15_dm",   [15]),
+    ("TP", "project_subtract", 1.0, "L15_dm", [15]),
     ("TP", "project_subtract", 1.0, "L_all_dm", list(range(NUM_MODEL_LAYERS))),
     ("FP", "project_subtract", 1.0, "L_all_dm", list(range(NUM_MODEL_LAYERS))),
 ]
@@ -87,7 +87,9 @@ def compute_diff_of_means_direction(
 
     mean_tp = layer_acts[tp_idx].mean(dim=0)
     mean_tn = layer_acts[tn_idx].mean(dim=0)
-    direction = mean_tp - mean_tn  # unnormalized; SteeringParams normalizes at load time
+    direction = (
+        mean_tp - mean_tn
+    )  # unnormalized; SteeringParams normalizes at load time
     print(
         f"[diff-means] direction shape={tuple(direction.shape)}, "
         f"norm={direction.norm():.4f}, "
@@ -100,7 +102,9 @@ def compute_diff_of_means_direction(
     return direction
 
 
-def _load_scenarios_by_cell(cells_path: Path, responses_path: Path) -> dict[str, list[dict[str, Any]]]:
+def _load_scenarios_by_cell(
+    cells_path: Path, responses_path: Path
+) -> dict[str, list[dict[str, Any]]]:
     cells = json.loads(cells_path.read_text())["per_id"]
     by_cell: dict[str, list[dict[str, Any]]] = {"TP": [], "FP": [], "FN": [], "TN": []}
     with responses_path.open("r") as f:
@@ -154,7 +158,9 @@ def _run_one_sweep(
     )
     gen = ResponseGenerator(
         model=ModelParams(model_name=MODEL_NAME, dtype="bfloat16"),
-        generation=GenerationParams(max_new_tokens=MAX_NEW_TOKENS, batch_size=BATCH_SIZE, do_sample=False),
+        generation=GenerationParams(
+            max_new_tokens=MAX_NEW_TOKENS, batch_size=BATCH_SIZE, do_sample=False
+        ),
         steering=steering,
     )
     if torch.cuda.is_available():
@@ -163,16 +169,21 @@ def _run_one_sweep(
     out_responses.parent.mkdir(parents=True, exist_ok=True)
     with out_responses.open("w") as f:
         for s, response in zip(scenarios, result.responses, strict=True):
-            f.write(json.dumps({
-                "sample_id": s["sample_id"],
-                "original_prompt": s["original_prompt"],
-                "original_response": response,
-                "ground_truth_label": s["ground_truth_label"],
-                "category": s.get("category", ""),
-                "sweep_id": sweep_id,
-                "intervention_mode": mode,
-                "alpha": alpha,
-            }) + "\n")
+            f.write(
+                json.dumps(
+                    {
+                        "sample_id": s["sample_id"],
+                        "original_prompt": s["original_prompt"],
+                        "original_response": response,
+                        "ground_truth_label": s["ground_truth_label"],
+                        "category": s.get("category", ""),
+                        "sweep_id": sweep_id,
+                        "intervention_mode": mode,
+                        "alpha": alpha,
+                    }
+                )
+                + "\n"
+            )
     del gen
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
@@ -261,9 +272,13 @@ def _run_judge(*, responses_path: Path, labeled_path: Path) -> None:
         with responses_path.open("r") as f:
             expected = sum(1 for line in f if line.strip())
         if existing == expected:
-            print(f"[causal-dm] Skip judge for {responses_path.name}: labeled has {existing}.")
+            print(
+                f"[causal-dm] Skip judge for {responses_path.name}: labeled has {existing}."
+            )
             return
-    yaml_text = _render_synth_yaml(responses_path=responses_path, labeled_path=labeled_path)
+    yaml_text = _render_synth_yaml(
+        responses_path=responses_path, labeled_path=labeled_path
+    )
     yaml_path = responses_path.with_suffix(".synth.yaml")
     yaml_path.write_text(yaml_text)
     oumi_bin = shutil.which("oumi")
@@ -342,32 +357,39 @@ def main() -> None:
         safe = sum(1 for lb in labels if lb == "safe")
         unclear = sum(1 for lb in labels if lb == "unclear")
         total = len(labels)
-        results.append({
-            "sweep_id": sweep_id,
-            "cell": cell,
-            "intervention_mode": mode,
-            "alpha": alpha,
-            "layers_tag": layers_tag,
-            "n_layers": len(layers_list),
-            "n_scenarios": total,
-            "n_unsafe": unsafe,
-            "n_safe": safe,
-            "n_unclear": unclear,
-            "pct_unsafe": unsafe / total if total else 0.0,
-            "pct_safe": safe / total if total else 0.0,
-        })
+        results.append(
+            {
+                "sweep_id": sweep_id,
+                "cell": cell,
+                "intervention_mode": mode,
+                "alpha": alpha,
+                "layers_tag": layers_tag,
+                "n_layers": len(layers_list),
+                "n_scenarios": total,
+                "n_unsafe": unsafe,
+                "n_safe": safe,
+                "n_unclear": unclear,
+                "pct_unsafe": unsafe / total if total else 0.0,
+                "pct_safe": safe / total if total else 0.0,
+            }
+        )
         print(
             f"[causal-dm] {sweep_id}: unsafe={unsafe}/{total} ({100 * unsafe / max(total, 1):.1f}%), "
             f"safe={safe}, unclear={unclear}"
         )
 
     out_json = DATA_DIR / "causal_results_diff_means.json"
-    out_json.write_text(json.dumps({
-        "direction_source": str(diff_direction_path),
-        "direction_method": "mean(TP_activations) - mean(TN_activations) at layers_output:15",
-        "baseline_cells": {cell: len(rows) for cell, rows in by_cell.items()},
-        "sweeps": results,
-    }, indent=2))
+    out_json.write_text(
+        json.dumps(
+            {
+                "direction_source": str(diff_direction_path),
+                "direction_method": "mean(TP_activations) - mean(TN_activations) at layers_output:15",
+                "baseline_cells": {cell: len(rows) for cell, rows in by_cell.items()},
+                "sweeps": results,
+            },
+            indent=2,
+        )
+    )
     print(f"[causal-dm] Done. Results at {out_json}")
 
 

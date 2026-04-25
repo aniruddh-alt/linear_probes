@@ -1,4 +1,5 @@
 """Layer-wise diff-in-means sweep orchestrator."""
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -79,7 +80,9 @@ class DiffMeansSweepRunner:
 
             val_features = dataset.features[val_indices]
             val_labels_t = dataset.labels[val_indices]
-            val_metrics = evaluate_projection(val_features, val_labels_t, layer_result.direction)
+            val_metrics = evaluate_projection(
+                val_features, val_labels_t, layer_result.direction
+            )
             layer_result.val_metrics = val_metrics
             layer_results[key] = layer_result
 
@@ -87,18 +90,26 @@ class DiffMeansSweepRunner:
         best_layer = layer_results[best_key]
 
         best_dataset = ProbingDataset.from_extraction_result(
-            extraction, activation_key=best_key,
-            labels=labels, positive_indices=positive_indices,
+            extraction,
+            activation_key=best_key,
+            labels=labels,
+            positive_indices=positive_indices,
         )
         test_features = best_dataset.features[test_indices]
         test_labels_t = best_dataset.labels[test_indices]
-        test_metrics = evaluate_projection(test_features, test_labels_t, best_layer.direction)
+        test_metrics = evaluate_projection(
+            test_features, test_labels_t, best_layer.direction
+        )
 
         train_features = best_dataset.features[train_indices]
         train_labels_tensor = best_dataset.labels[train_indices]
         controls_summary = self._run_controls(
-            estimator, train_features, train_labels_tensor,
-            test_features, test_labels_t, best_layer.direction,
+            estimator,
+            train_features,
+            train_labels_tensor,
+            test_features,
+            test_labels_t,
+            best_layer.direction,
             real_metrics=test_metrics,
         )
         if self.sweep.enforce_control_sanity:
@@ -130,7 +141,9 @@ class DiffMeansSweepRunner:
                 selected_key=best_key,
                 selection_metric=self.sweep.selection_metric,
                 split_indices={
-                    "train": train_indices, "val": val_indices, "test": test_indices,
+                    "train": train_indices,
+                    "val": val_indices,
+                    "test": test_indices,
                 },
                 split_sizes=(len(train_indices), len(val_indices), len(test_indices)),
                 test_metrics=test_metrics,
@@ -161,7 +174,9 @@ class DiffMeansSweepRunner:
         real_metrics: dict[str, float] | None = None,
     ) -> dict[str, dict[str, float]]:
         if real_metrics is None:
-            real_metrics = evaluate_projection(test_features, test_labels, real_direction)
+            real_metrics = evaluate_projection(
+                test_features, test_labels, real_direction
+            )
 
         shuffled_runs: list[dict[str, float]] = []
         for seed in self.sweep.control_seeds:
@@ -258,7 +273,9 @@ class DiffMeansSweepRunner:
 
     def _enforce_control_sanity(self, controls: dict[str, dict[str, float]]) -> None:
         real_auroc = float(controls.get("real", {}).get("auroc_mean", 0.0))
-        shuffled_auroc = float(controls.get("shuffled_labels", {}).get("auroc_mean", 0.0))
+        shuffled_auroc = float(
+            controls.get("shuffled_labels", {}).get("auroc_mean", 0.0)
+        )
         if real_auroc <= shuffled_auroc:
             raise ValueError(
                 "Control sanity check failed: real AUROC does not exceed shuffled labels."

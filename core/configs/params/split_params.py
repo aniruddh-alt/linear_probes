@@ -24,6 +24,4 @@ class SplitParams(BaseConfig):
                 raise ValueError(f"{name} must be in [0, 1], got {value}")
         total = self.train_fraction + self.val_fraction + self.test_fraction
         if abs(total - 1.0) > 1e-6:
-            raise ValueError(
-                f"Split fractions must sum to 1.0 (got {total:.6f})"
-            )
+            raise ValueError(f"Split fractions must sum to 1.0 (got {total:.6f})")

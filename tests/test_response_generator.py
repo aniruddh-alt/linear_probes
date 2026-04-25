@@ -24,7 +24,10 @@ class TestResponseGenerator:
         mock_tok.pad_token_id = 0
         mock_tok.pad_token = "<pad>"
         mock_tok.eos_token_id = 1
-        mock_tok.return_value = {"input_ids": MagicMock(to=MagicMock(return_value=MagicMock())), "attention_mask": MagicMock(to=MagicMock(return_value=MagicMock()))}
+        mock_tok.return_value = {
+            "input_ids": MagicMock(to=MagicMock(return_value=MagicMock())),
+            "attention_mask": MagicMock(to=MagicMock(return_value=MagicMock())),
+        }
         mock_tok.batch_decode.return_value = ["response 0", "response 1"]
         mock_tok_cls.from_pretrained.return_value = mock_tok
         mock_model_obj = MagicMock()
@@ -50,7 +53,10 @@ class TestResponseGenerator:
         mock_tok.pad_token_id = 0
         mock_tok.pad_token = "<pad>"
         mock_tok.eos_token_id = 1
-        mock_tok.return_value = {"input_ids": MagicMock(to=MagicMock(return_value=MagicMock())), "attention_mask": MagicMock(to=MagicMock(return_value=MagicMock()))}
+        mock_tok.return_value = {
+            "input_ids": MagicMock(to=MagicMock(return_value=MagicMock())),
+            "attention_mask": MagicMock(to=MagicMock(return_value=MagicMock())),
+        }
         mock_tok.batch_decode.return_value = ["resp"]
         mock_tok_cls.from_pretrained.return_value = mock_tok
         mock_model_obj = MagicMock()
@@ -93,14 +99,14 @@ class TestSteeringVectorLoading:
         gen = ResponseGenerator(
             model=ModelParams(model_name="test"),
             steering=SteeringParams(
-                enabled=True, vector_path=str(vec_path), layers=[0],
+                enabled=True,
+                vector_path=str(vec_path),
+                layers=[0],
             ),
         )
         assert gen._steering_vector is not None
         assert gen._steering_vector.shape == (64,)
-        assert torch.allclose(
-            gen._steering_vector.norm(), torch.tensor(1.0), atol=1e-5
-        )
+        assert torch.allclose(gen._steering_vector.norm(), torch.tensor(1.0), atol=1e-5)
 
     @patch("generation.response_generator.AutoModelForCausalLM")
     @patch("generation.response_generator.AutoTokenizer")

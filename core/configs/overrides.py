@@ -5,9 +5,7 @@ from __future__ import annotations
 from omegaconf import OmegaConf
 
 
-def apply_dot_overrides(
-    config_dict: dict, overrides: dict[str, str]
-) -> dict:
+def apply_dot_overrides(config_dict: dict, overrides: dict[str, str]) -> dict:
     """Apply dot-notation overrides to a config dictionary.
 
     Parses string values into appropriate Python types (bool, int, float, None)

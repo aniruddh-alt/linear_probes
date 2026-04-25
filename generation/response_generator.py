@@ -179,7 +179,7 @@ class ResponseGenerator:
                 input_len = input_ids.shape[1]
 
                 with torch.no_grad():
-                    output_ids = self.model.generate(
+                    output_ids = self.model.generate(  # pyright: ignore[reportAttributeAccessIssue]
                         input_ids=input_ids,
                         attention_mask=attention_mask,
                         max_new_tokens=gen_params.max_new_tokens,

@@ -1,4 +1,5 @@
 """Tests for IOParams config."""
+
 from __future__ import annotations
 
 from core.configs.params.io_params import IOParams
@@ -11,7 +12,9 @@ class TestIOParams:
         assert p.output_dir == "artifacts"
 
     def test_from_dict(self):
-        p = IOParams.from_dict({"input_path": "data/labeled.jsonl", "output_dir": "out/"})
+        p = IOParams.from_dict(
+            {"input_path": "data/labeled.jsonl", "output_dir": "out/"}
+        )
         assert p.input_path == "data/labeled.jsonl"
         assert p.output_dir == "out/"
 

@@ -1,6 +1,22 @@
-# sonde
+<p align="center">
+  <img src="docs/img/hero.svg" alt="A probe descending through transformer layers" width="100%"/>
+</p>
 
-> *A slender probe cast into the hidden layers of a large model, to report back what it finds.*
+<h1 align="center">sonde</h1>
+
+<p align="center">
+  <em>A slender probe cast into the hidden layers of a large model, to report back what it finds.</em>
+</p>
+
+<p align="center">
+  <a href="https://github.com/aniruddh-alt/sonde/actions/workflows/ci.yml"><img src="https://github.com/aniruddh-alt/sonde/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
+  <img src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue" alt="Python 3.10+"/>
+  <a href="https://github.com/astral-sh/ruff"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json" alt="Ruff"/></a>
+  <img src="https://img.shields.io/badge/type_checker-pyright-informational" alt="Pyright"/>
+  <img src="https://img.shields.io/badge/status-research-orange" alt="Research"/>
+</p>
+
+---
 
 A **sonde**, in the scientific sense, is a small instrument sent into an otherwise inaccessible medium — a radiosonde riding a weather balloon through the stratosphere, a dropsonde spiraling through a hurricane, a medical sonde threading through tissue. The device is simple. The medium it probes is vast. The asymmetry is the point: a tiny, legible instrument lets you measure something you could never observe directly.
 
@@ -10,14 +26,32 @@ That dot product is a sonde.
 
 This toolkit is for dropping them into models at scale.
 
+## The pipeline
+
+```mermaid
+flowchart LR
+    A[labeled<br/>records] --> B[ActivationExtractor]
+    B -->|safetensors| C[(activations<br/>per layer · per token)]
+    C --> D[ProbingDataset]
+    D --> E[LayerProbeSweepRunner]
+    E --> F{best layer<br/>selection on val}
+    F --> G[test metrics<br/>+ controls]
+    F --> H[concept direction<br/>for steering]
+
+    style B fill:#2a3a6d,stroke:#8aa0cc,color:#fff
+    style E fill:#2a3a6d,stroke:#8aa0cc,color:#fff
+    style G fill:#ff7755,stroke:#ff7755,color:#fff
+    style H fill:#ffd866,stroke:#ffd866,color:#000
+```
+
+One YAML drives the whole thing. Activation → probe → layer-resolved answer, reproducibly.
+
 ## What `sonde` does
 
 - **Extract activations** from any HuggingFace transformer at any layer, token, or internal module.
 - **Train linear probes** — logistic regression, difference-of-means, ridge, and more — on those activations.
 - **Sweep** across layers, token positions, and probe architectures to find *where* in the model a concept lives.
 - **Report** test-set metrics, selectivity controls, and concept directions usable for downstream steering.
-
-It is built for mechanistic interpretability research: activation → probe → layer-resolved answer, reproducibly, from a single YAML.
 
 ## Install
 
@@ -53,8 +87,6 @@ print(result["labels"])
 ## Quickstart: sweep probes across layers
 
 ```python
-from torch.utils.data import DataLoader
-
 from dataset import ProbingDataset, ProbingSampleBuilder
 from configs import LayerProbeSweepConfig, ProbeConfig
 from probes import LayerProbeSweepRunner
@@ -69,11 +101,8 @@ records = [
 ]
 bundle = ProbingSampleBuilder.from_iterable(records).to_samples(text_key="text")
 train_idx, val_idx, test_idx = bundle.train_val_test_split(
-    train_fraction=0.7,
-    val_fraction=0.15,
-    test_fraction=0.15,
-    seed=0,
-    group_ids=bundle.ids,
+    train_fraction=0.7, val_fraction=0.15, test_fraction=0.15,
+    seed=0, group_ids=bundle.ids,
 )
 sweep = LayerProbeSweepRunner(
     LayerProbeSweepConfig(
@@ -83,9 +112,7 @@ sweep = LayerProbeSweepRunner(
 )
 result = sweep.run(
     extraction_result,
-    train_indices=train_idx,
-    val_indices=val_idx,
-    test_indices=test_idx,
+    train_indices=train_idx, val_indices=val_idx, test_indices=test_idx,
     group_ids=extraction_result["sample_ids"],
     manifest_path="artifacts/probe_runs/run_manifest.json",
 )
@@ -125,28 +152,27 @@ sonde run -c configs/my_experiment.yaml
 
 ### Indexed activation kinds
 
-- `layers_input`
-- `layers_output`
-- `attentions_input`
-- `attentions_output`
-- `mlps_input`
-- `mlps_output`
-- `attention_probabilities` (requires `enable_attention_probs=True`)
+| Kind | What it is |
+|---|---|
+| `layers_input` | residual stream entering each transformer block |
+| `layers_output` | residual stream leaving each transformer block |
+| `attentions_input` / `attentions_output` | attention sub-layer input/output |
+| `mlps_input` / `mlps_output` | MLP sub-layer input/output |
+| `attention_probabilities` | post-softmax attention weights (requires `enable_attention_probs=True`) |
 
 ### Selector syntaxes for indexed kinds
 
-- single layer: `layers_output:5`
-- all layers: `layers_output`, `layers_output:*`, `layers_output:all`
-- inclusive range: `layers_output:0-4`
-- slice: `layers_output:0:5`
-- slice with step: `layers_output:0:12:2`
+| Syntax | Meaning |
+|---|---|
+| `layers_output:5` | single layer |
+| `layers_output` or `layers_output:*` or `layers_output:all` | every layer |
+| `layers_output:0-4` | inclusive range |
+| `layers_output:0:5` | slice |
+| `layers_output:0:12:2` | slice with step |
 
 ### Non-indexed activation kinds
 
-- `token_embeddings`
-- `logits`
-- `next_token_probs`
-- `input_ids`
+`token_embeddings` · `logits` · `next_token_probs` · `input_ids`
 
 ### Custom module hooks
 
@@ -157,3 +183,7 @@ sonde run -c configs/my_experiment.yaml
 
 - **[docs/linear-probes-primer.md](docs/linear-probes-primer.md)** — a presentation-ready primer on linear probes: what they are, how to train them, where they're used, and the key papers.
 - **`examples/refusal_probing/`** — a full end-to-end refusal-detection pipeline.
+
+## Contributing
+
+PRs welcome. See **[CONTRIBUTING.md](CONTRIBUTING.md)** for dev setup, lint/type/test loop, and the conventions we follow.

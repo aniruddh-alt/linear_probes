@@ -80,10 +80,14 @@ def _extract_direction(best_probe_path: Path, save_path: Path) -> None:
         raise ValueError(f"Expected 1D direction, got shape {tuple(direction.shape)}")
     save_path.parent.mkdir(parents=True, exist_ok=True)
     save_file({"direction": direction.contiguous()}, str(save_path))
-    print(f"[causal] Saved direction (dim={direction.numel()}, norm={direction.norm():.4f}) -> {save_path}")
+    print(
+        f"[causal] Saved direction (dim={direction.numel()}, norm={direction.norm():.4f}) -> {save_path}"
+    )
 
 
-def _load_scenarios_by_cell(cells_path: Path, responses_path: Path) -> dict[str, list[dict[str, Any]]]:
+def _load_scenarios_by_cell(
+    cells_path: Path, responses_path: Path
+) -> dict[str, list[dict[str, Any]]]:
     """Group the original response rows by their TP/FP/FN/TN cell."""
     cells = json.loads(cells_path.read_text())["per_id"]
     by_cell: dict[str, list[dict[str, Any]]] = {"TP": [], "FP": [], "FN": [], "TN": []}
@@ -115,15 +119,19 @@ def _run_one_sweep(
         if existing == len(scenarios):
             print(f"[causal] Skip {sweep_id}: {out_responses} has {existing} rows.")
             return
-    print(f"[causal] Sweep {sweep_id}: {mode} alpha={alpha} on {len(scenarios)} scenarios, layers={len(layers)} (first/last={layers[0]}..{layers[-1]})")
+    print(
+        f"[causal] Sweep {sweep_id}: {mode} alpha={alpha} on {len(scenarios)} scenarios, layers={len(layers)} (first/last={layers[0]}..{layers[-1]})"
+    )
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
     chat_prompts = []
     for s in scenarios:
-        chat_prompts.append(tokenizer.apply_chat_template(
-            [{"role": "user", "content": s["original_prompt"]}],
-            tokenize=False,
-            add_generation_prompt=True,
-        ))
+        chat_prompts.append(
+            tokenizer.apply_chat_template(
+                [{"role": "user", "content": s["original_prompt"]}],
+                tokenize=False,
+                add_generation_prompt=True,
+            )
+        )
     steering = SteeringParams(
         enabled=True,
         vector_path=str(direction_path),
@@ -135,7 +143,9 @@ def _run_one_sweep(
     )
     gen = ResponseGenerator(
         model=ModelParams(model_name=MODEL_NAME, dtype="bfloat16"),
-        generation=GenerationParams(max_new_tokens=MAX_NEW_TOKENS, batch_size=BATCH_SIZE, do_sample=False),
+        generation=GenerationParams(
+            max_new_tokens=MAX_NEW_TOKENS, batch_size=BATCH_SIZE, do_sample=False
+        ),
         steering=steering,
     )
     if torch.cuda.is_available():
@@ -144,16 +154,21 @@ def _run_one_sweep(
     out_responses.parent.mkdir(parents=True, exist_ok=True)
     with out_responses.open("w") as f:
         for s, response in zip(scenarios, result.responses, strict=True):
-            f.write(json.dumps({
-                "sample_id": s["sample_id"],
-                "original_prompt": s["original_prompt"],
-                "original_response": response,
-                "ground_truth_label": s["ground_truth_label"],
-                "category": s.get("category", ""),
-                "sweep_id": sweep_id,
-                "intervention_mode": mode,
-                "alpha": alpha,
-            }) + "\n")
+            f.write(
+                json.dumps(
+                    {
+                        "sample_id": s["sample_id"],
+                        "original_prompt": s["original_prompt"],
+                        "original_response": response,
+                        "ground_truth_label": s["ground_truth_label"],
+                        "category": s.get("category", ""),
+                        "sweep_id": sweep_id,
+                        "intervention_mode": mode,
+                        "alpha": alpha,
+                    }
+                )
+                + "\n"
+            )
     # Free GPU memory between sweeps (we reload the model each time).
     del gen
     if torch.cuda.is_available():
@@ -168,10 +183,14 @@ def _run_judge(*, responses_path: Path, labeled_path: Path) -> None:
         with responses_path.open("r") as f:
             expected = sum(1 for line in f if line.strip())
         if existing == expected:
-            print(f"[causal] Skip judge for {responses_path.name}: labeled already has {existing} rows.")
+            print(
+                f"[causal] Skip judge for {responses_path.name}: labeled already has {existing} rows."
+            )
             return
     # Write a one-off synth YAML that points at this sweep's responses.
-    yaml_text = _render_synth_yaml(responses_path=responses_path, labeled_path=labeled_path)
+    yaml_text = _render_synth_yaml(
+        responses_path=responses_path, labeled_path=labeled_path
+    )
     yaml_path = responses_path.with_suffix(".synth.yaml")
     yaml_path.write_text(yaml_text)
     oumi_bin = shutil.which("oumi")
@@ -332,31 +351,38 @@ def main() -> None:
         safe = sum(1 for lb in labels if lb == "safe")
         unclear = sum(1 for lb in labels if lb == "unclear")
         total = len(labels)
-        results.append({
-            "sweep_id": sweep_id,
-            "cell": cell,
-            "intervention_mode": mode,
-            "alpha": alpha,
-            "layers_tag": layers_tag,
-            "n_layers": len(layers_list),
-            "n_scenarios": total,
-            "n_unsafe": unsafe,
-            "n_safe": safe,
-            "n_unclear": unclear,
-            "pct_unsafe": unsafe / total if total else 0.0,
-            "pct_safe": safe / total if total else 0.0,
-        })
+        results.append(
+            {
+                "sweep_id": sweep_id,
+                "cell": cell,
+                "intervention_mode": mode,
+                "alpha": alpha,
+                "layers_tag": layers_tag,
+                "n_layers": len(layers_list),
+                "n_scenarios": total,
+                "n_unsafe": unsafe,
+                "n_safe": safe,
+                "n_unclear": unclear,
+                "pct_unsafe": unsafe / total if total else 0.0,
+                "pct_safe": safe / total if total else 0.0,
+            }
+        )
         print(
             f"[causal] {sweep_id}: unsafe={unsafe}/{total} ({100 * unsafe / max(total, 1):.1f}%), "
             f"safe={safe}, unclear={unclear}"
         )
 
     out_json = DATA_DIR / "causal_results_all_layers.json"
-    out_json.write_text(json.dumps({
-        "direction_source": str(direction_path),
-        "baseline_cells": {cell: len(rows) for cell, rows in by_cell.items()},
-        "sweeps": results,
-    }, indent=2))
+    out_json.write_text(
+        json.dumps(
+            {
+                "direction_source": str(direction_path),
+                "baseline_cells": {cell: len(rows) for cell, rows in by_cell.items()},
+                "sweeps": results,
+            },
+            indent=2,
+        )
+    )
     print(f"[causal] Done. Aggregate results at {out_json}")
 
 

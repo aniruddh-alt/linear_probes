@@ -24,7 +24,9 @@ class ProbeAnalyzer:
         self.output_dir = Path(output_dir) if output_dir is not None else None
         self.save_plots = save_plots
 
-    def auroc_analysis(self, *, output_path: str | Path | None = None) -> TrainedLayerProbe:
+    def auroc_analysis(
+        self, *, output_path: str | Path | None = None
+    ) -> TrainedLayerProbe:
         """Plot AUROC ranking and return the best probe by AUROC."""
         keys = [probe.activation_key for probe in self.probes]
         scores = [self._metric_value(probe, "auroc") for probe in self.probes]
@@ -45,7 +47,9 @@ class ProbeAnalyzer:
         ax.legend(loc="lower right")
         fig.tight_layout()
         if self.save_plots:
-            plt.savefig(self._resolve_output_path("probe_auroc_ranking.png", output_path))
+            plt.savefig(
+                self._resolve_output_path("probe_auroc_ranking.png", output_path)
+            )
         plt.close(fig)
 
         ranked = sorted(
@@ -92,7 +96,9 @@ class ProbeAnalyzer:
         plt.close(fig)
         return cosine_matrix
 
-    def _resolve_output_path(self, default_name: str, output_path: str | Path | None) -> Path:
+    def _resolve_output_path(
+        self, default_name: str, output_path: str | Path | None
+    ) -> Path:
         if output_path is not None:
             resolved = Path(output_path)
         elif self.output_dir is not None:

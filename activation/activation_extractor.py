@@ -12,6 +12,7 @@ import torch
 from safetensors.torch import save_file
 from torch.utils.data import DataLoader, Dataset
 
+from activation.token_selectors import AllTokens, TokenSelector
 from activation.types import ExtractionResult, LayerSpec, ModelMetadata
 from core.configs import ExtractionParams, ModelParams
 from dataset.samples import SampleBundle
@@ -63,6 +64,8 @@ class ActivationExtractor:
         self,
         model: ModelParams | None = None,
         extraction: ExtractionParams | None = None,
+        *,
+        token_selector: TokenSelector | None = None,
     ):
         transformer_cls = StandardizedTransformer
         if transformer_cls is None:
@@ -72,6 +75,7 @@ class ActivationExtractor:
             )
         self.model_params = model or ModelParams()
         self.extraction_params = extraction or ExtractionParams()
+        self._runtime_token_selector = token_selector
         mc = self.model_params
         unsupported_model_kwargs = {"device"}
         model_kwargs: dict[str, Any] = {
@@ -85,7 +89,11 @@ class ActivationExtractor:
         # Convert string dtype to torch_dtype for transformers compatibility.
         if "dtype" in model_kwargs:
             dtype_str = model_kwargs.pop("dtype")
-            dtype_map = {"bfloat16": torch.bfloat16, "float16": torch.float16, "float32": torch.float32}
+            dtype_map = {
+                "bfloat16": torch.bfloat16,
+                "float16": torch.float16,
+                "float32": torch.float32,
+            }
             model_kwargs["torch_dtype"] = dtype_map.get(dtype_str, dtype_str)
         self.model = transformer_cls(mc.model_name, **model_kwargs)
         self.batch_size = self.extraction_params.batch_size
@@ -139,31 +147,59 @@ class ActivationExtractor:
         resolved_token_index = self.extraction_params.token_index
         resolved_remote = self.extraction_params.remote
         resolved_to_cpu = self.extraction_params.to_cpu
+        token_selector = self._resolve_token_selector()
+        needs_input_ids = (
+            token_selector is not None and token_selector.requires_input_ids
+        )
         loader = self._as_dataloader(prompts_source, batch_size=self.batch_size)
         outputs_chunks: dict[str, list[torch.Tensor]] = {name: [] for name in requested}
 
         for batch in loader:
             prompts = self._normalize_batch(batch)
             saved: dict[str, Any] = {}
+            saved_input_ids: Any = None
             with self.model.trace(prompts, remote=resolved_remote):
                 for name, spec in zip(requested, parsed_specs, strict=True):
                     activation = self._resolve_activation(spec)
-                    activation = self._select_token_position(
-                        activation,
-                        resolved_token_index,
-                        kind=spec.kind,
-                        allow_2d=spec.kind == "input_ids",
-                    )
+                    if token_selector is None:
+                        activation = self._select_token_position(
+                            activation,
+                            resolved_token_index,
+                            kind=spec.kind,
+                            allow_2d=spec.kind == "input_ids",
+                        )
                     if resolved_to_cpu:
                         activation = activation.cpu()
-                    saved[name] = activation.save()
-            for name in requested:
-                outputs_chunks[name].append(
-                    self._normalize_saved_tensor(saved[name], batch_size=len(prompts))
+                    saved[name] = activation.save()  # pyright: ignore[reportAttributeAccessIssue]
+                if needs_input_ids:
+                    ids_proxy = self.model.input_ids
+                    if resolved_to_cpu:
+                        ids_proxy = ids_proxy.cpu()
+                    saved_input_ids = ids_proxy.save()  # pyright: ignore[reportAttributeAccessIssue]
+
+            input_ids_tensor: torch.Tensor | None = None
+            if needs_input_ids and saved_input_ids is not None:
+                input_ids_tensor = self._materialize_input_ids(
+                    saved_input_ids, batch_size=len(prompts)
                 )
 
+            for name, spec in zip(requested, parsed_specs, strict=True):
+                tensor = self._normalize_saved_tensor(
+                    saved[name], batch_size=len(prompts)
+                )
+                if token_selector is not None:
+                    tensor, _ = token_selector.select(
+                        tensor,
+                        kind=spec.kind,
+                        input_ids=input_ids_tensor,
+                        attention_mask=None,
+                    )
+                outputs_chunks[name].append(tensor)
+
         outputs: dict[str, torch.Tensor | list[torch.Tensor]] = {}
-        sequence_mode = resolved_token_index is None
+        sequence_mode = (
+            token_selector is None and resolved_token_index is None
+        ) or isinstance(token_selector, AllTokens)
         for name in requested:
             chunks = outputs_chunks[name]
             if not chunks:
@@ -190,11 +226,17 @@ class ActivationExtractor:
             total_items = (
                 len(first_out)
                 if isinstance(first_out, list)
-                else int(first_out.shape[0]) if first_out.ndim > 0 else 1
+                else int(first_out.shape[0])
+                if first_out.ndim > 0
+                else 1
             )
             for name in requested[1:]:
                 out = outputs[name]
-                key_items = len(out) if isinstance(out, list) else (int(out.shape[0]) if out.ndim > 0 else 1)
+                key_items = (
+                    len(out)
+                    if isinstance(out, list)
+                    else (int(out.shape[0]) if out.ndim > 0 else 1)
+                )
                 if key_items != total_items:
                     raise ValueError(
                         "Activation outputs have inconsistent sample counts across keys: "
@@ -231,6 +273,21 @@ class ActivationExtractor:
     @classmethod
     def supported_activation_kinds(cls) -> list[str]:
         return sorted(cls._INDEXED_KINDS | cls._NON_INDEXED_KINDS | cls._PATH_KINDS)
+
+    def _resolve_token_selector(self) -> TokenSelector | None:
+        """Pick the active selector, honouring the precedence rules.
+
+        Precedence:
+          1. Programmatic ``token_selector=`` passed to ``__init__``.
+          2. ``ExtractionParams.token_selector`` (YAML / dataclass).
+          3. ``None`` -> use the legacy ``token_index`` fast path.
+        """
+        if self._runtime_token_selector is not None:
+            return self._runtime_token_selector
+        params_selector = self.extraction_params.token_selector
+        if params_selector is not None:
+            return params_selector.build()
+        return None
 
     def _resolve_requested_activations(
         self, activations: list[str] | None, layers: list[int] | None
@@ -531,6 +588,22 @@ class ActivationExtractor:
             "Activation tensor does not expose the expected batch dimension. "
             f"Expected first dimension size {batch_size}, got shape {tuple(tensor.shape)}."
         )
+
+    @staticmethod
+    def _materialize_input_ids(saved: Any, batch_size: int) -> torch.Tensor:
+        """Resolve a saved nnsight input-ids proxy into a ``(B, S)`` long tensor."""
+        tensor = saved.detach() if hasattr(saved, "detach") else torch.as_tensor(saved)
+        if tensor.ndim == 1:
+            tensor = tensor.unsqueeze(0)
+        if tensor.ndim != 2:
+            raise ValueError(
+                f"Expected input_ids of shape (B, S); got shape {tuple(tensor.shape)}."
+            )
+        if tensor.shape[0] != batch_size:
+            raise ValueError(
+                f"input_ids batch dim {tensor.shape[0]} does not match prompt count {batch_size}."
+            )
+        return tensor.long()
 
     def _persist_result(
         self,

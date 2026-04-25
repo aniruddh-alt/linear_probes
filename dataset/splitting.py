@@ -38,7 +38,9 @@ def _stratified_train_val_test_split(
     """Build deterministic train/val/test splits with strict safety checks."""
     _validate_fraction_triplet(train_fraction, val_fraction, test_fraction)
     if len(labels) < 6:
-        raise ValueError("Need at least 6 samples for strict train/val/test stratification.")
+        raise ValueError(
+            "Need at least 6 samples for strict train/val/test stratification."
+        )
     label_values = [int(label) for label in labels]
     if any(label not in (0, 1) for label in label_values):
         raise ValueError("labels must be binary values in {0, 1}.")
@@ -69,7 +71,9 @@ def _stratified_train_val_test_split(
         train_idx=train_idx,
         val_idx=val_idx,
         test_idx=test_idx,
-        group_ids=[str(group) for group in group_ids] if group_ids is not None else None,
+        group_ids=[str(group) for group in group_ids]
+        if group_ids is not None
+        else None,
     )
     return train_idx, val_idx, test_idx
 
@@ -98,7 +102,9 @@ def _validate_split_indices(
     all_idx = train + val + test
     for idx in all_idx:
         if idx < 0 or idx >= total_samples:
-            raise IndexError(f"Split index {idx} out of range for {total_samples} samples.")
+            raise IndexError(
+                f"Split index {idx} out of range for {total_samples} samples."
+            )
 
     if len(set(train)) != len(train):
         raise ValueError("train_idx contains duplicate indices.")
@@ -116,7 +122,9 @@ def _validate_split_indices(
     covered = train_set | val_set | test_set
     if covered != set(range(total_samples)):
         missing = sorted(set(range(total_samples)) - covered)
-        raise ValueError(f"Split indices must cover all samples exactly once. Missing: {missing}")
+        raise ValueError(
+            f"Split indices must cover all samples exactly once. Missing: {missing}"
+        )
 
     for split_name, split in (("train", train), ("val", val), ("test", test)):
         split_labels = [int(labels[idx]) for idx in split]
@@ -132,7 +140,11 @@ def _validate_split_indices(
         train_groups = {group_ids[idx] for idx in train}
         val_groups = {group_ids[idx] for idx in val}
         test_groups = {group_ids[idx] for idx in test}
-        if train_groups & val_groups or train_groups & test_groups or val_groups & test_groups:
+        if (
+            train_groups & val_groups
+            or train_groups & test_groups
+            or val_groups & test_groups
+        ):
             raise ValueError("Group leakage detected across train/val/test splits.")
 
 
@@ -287,4 +299,6 @@ def _validate_fraction_triplet(
             raise ValueError("train/val/test fractions must each be in (0, 1).")
     total = train_fraction + val_fraction + test_fraction
     if abs(total - 1.0) > 1e-8:
-        raise ValueError("train_fraction + val_fraction + test_fraction must equal 1.0.")
+        raise ValueError(
+            "train_fraction + val_fraction + test_fraction must equal 1.0."
+        )
