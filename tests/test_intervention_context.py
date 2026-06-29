@@ -23,7 +23,7 @@ from sonde.interventions import (
     PendingSteer,
     load_vector,
 )
-from sonde.interventions.steering import apply_pending_steers
+from sonde.interventions.steering import apply_pending_steers, directional_ablation
 
 # ─────────────────────────── Mock model ───────────────────────────
 
@@ -63,14 +63,40 @@ class _SteerCall:
     positions: int | list[int] | None
 
 
+class _MockLayersOutput:
+    """Indexable proxy mirroring nnterp's ``model.layers_output[L]`` get/set."""
+
+    def __init__(self, model: _MockModel):
+        self._model = model
+
+    def _guard(self) -> None:
+        if not (self._model.trace_active or self._model.generate_active):
+            raise RuntimeError("layers_output accessed outside of trace/generate")
+
+    def __getitem__(self, layer: int) -> torch.Tensor:
+        self._guard()
+        return self._model._layers_store[layer]
+
+    def __setitem__(self, layer: int, value: torch.Tensor) -> None:
+        self._guard()
+        self._model._layers_store[layer] = value
+        self._model.ablation_writes.append((layer, value))
+
+
 class _MockModel:
     """Minimal stand-in for nnterp.StandardizedTransformer for unit tests."""
 
-    def __init__(self, num_layers: int = 4):
+    def __init__(self, num_layers: int = 4, hidden: int = 2, seq: int = 3):
         self.num_layers = num_layers
         self.steer_calls: list[_SteerCall] = []
         self.trace_active = False
         self.generate_active = False
+        torch.manual_seed(0)
+        self._layers_store: dict[int, torch.Tensor] = {
+            layer: torch.randn(1, seq, hidden) for layer in range(num_layers)
+        }
+        self.ablation_writes: list[tuple[int, torch.Tensor]] = []
+        self.layers_output = _MockLayersOutput(self)
 
     def trace(self, prompts: Any) -> _MockTrace:
         return _MockTrace(self, prompts)
@@ -253,14 +279,14 @@ class TestInterventionContextConfiguration:
 
 
 class TestInterventionContextApplication:
-    def test_trace_applies_pending_steers(self):
+    def test_apply_inside_trace_applies_steers(self):
         model = _MockModel(num_layers=4)
         v = torch.tensor([1.0, 0.0])
         ctx = InterventionContext(model).add_steering(
             layers=[1, 3], vector=v, factor=0.5
         )
-        with ctx.trace("hello"):
-            pass
+        with model.trace("hello"):
+            ctx.apply()
         assert len(model.steer_calls) == 1
         call = model.steer_calls[0]
         assert call.layers == [1, 3]
@@ -269,11 +295,12 @@ class TestInterventionContextApplication:
         assert call.positions is None
         assert model.trace_active is False  # restored on exit
 
-    def test_generate_applies_pending_steers(self):
+    def test_apply_inside_generate_applies_steers(self):
         model = _MockModel(num_layers=4)
         v = torch.tensor([0.0, 1.0])
         ctx = InterventionContext(model).add_steering(layers=2, vector=v)
-        ctx.generate("hello", max_new_tokens=8)
+        with model.generate("hello", max_new_tokens=8):
+            ctx.apply()
         assert len(model.steer_calls) == 1
         assert model.steer_calls[0].layers == [2]
         assert model.generate_active is False
@@ -283,8 +310,8 @@ class TestInterventionContextApplication:
         ctx = InterventionContext(model).add_steering(
             layers=[0], vector=torch.tensor([1.0, 0.0]), positions=[-1]
         )
-        with ctx.trace("hi"):
-            pass
+        with model.trace("hi"):
+            ctx.apply()
         assert model.steer_calls[0].positions == [-1]
 
     def test_multiple_steers_applied_in_order(self):
@@ -294,24 +321,40 @@ class TestInterventionContextApplication:
             .add_steering(layers=[0], vector=torch.tensor([1.0, 0.0]), factor=1.0)
             .add_steering(layers=[2], vector=torch.tensor([0.0, 1.0]), factor=-1.0)
         )
-        with ctx.trace("hi"):
-            pass
+        with model.trace("hi"):
+            ctx.apply()
         assert [c.layers for c in model.steer_calls] == [[0], [2]]
         assert [c.factor for c in model.steer_calls] == [1.0, -1.0]
 
-    def test_project_subtract_mode_raises_until_r2(self):
+    def test_project_subtract_ablates_layer_output(self):
+        model = _MockModel(num_layers=4, hidden=2)
+        v = torch.tensor([1.0, 0.0])
+        ctx = InterventionContext(model).add_steering(
+            layers=[1], vector=v, mode="project_subtract", factor=1.0
+        )
+        with model.trace("hi"):
+            ctx.apply()
+        # The layer-1 output was overwritten with the ablated residual.
+        assert [layer for layer, _ in model.ablation_writes] == [1]
+        _, written = model.ablation_writes[0]
+        vhat = v / v.norm()
+        proj = (written[0] * vhat).sum(dim=-1).abs().max().item()
+        assert proj < 1e-5  # component along v removed
+
+    def test_project_subtract_with_positions_raises(self):
         model = _MockModel(num_layers=4)
         ctx = InterventionContext(model).add_steering(
-            layers=[0],
+            layers=[1],
             vector=torch.tensor([1.0, 0.0]),
             mode="project_subtract",
+            positions=[-1],
         )
-        with pytest.raises(NotImplementedError, match="R-2"), ctx.trace("hi"):
-            pass
+        with pytest.raises(NotImplementedError, match="positions"), model.trace("hi"):
+            ctx.apply()
 
     def test_apply_pending_steers_outside_trace_errors(self):
         """The mock raises if steer() is called outside trace/generate — this
-        documents the contract that the context manager guards entry."""
+        documents the contract that apply() must run inside the trace block."""
         model = _MockModel(num_layers=4)
         pending = [
             PendingSteer(
@@ -379,3 +422,37 @@ class TestInterventionContextFromConfig:
         ctx = InterventionContext.from_config(_MockModel(num_layers=4), steering=blocks)
         assert [s.layers for s in ctx.pending_steers] == [[0], [3]]
         assert [s.factor for s in ctx.pending_steers] == [1.0, -1.0]
+
+
+class TestDirectionalAblation:
+    def test_projection_removed(self):
+        h = torch.randn(2, 5, 8)
+        v = torch.randn(8)
+        vhat = v / v.norm()
+        out = directional_ablation(h, vhat, factor=1.0)
+        proj = (out * vhat).sum(dim=-1).abs().max().item()
+        assert proj < 1e-5
+
+    def test_factor_zero_is_noop(self):
+        h = torch.randn(2, 5, 8)
+        v = torch.randn(8)
+        out = directional_ablation(h, v / v.norm(), factor=0.0)
+        assert torch.allclose(out, h)
+
+    def test_factor_half_removes_half(self):
+        h = torch.randn(2, 5, 8)
+        v = torch.randn(8)
+        vhat = v / v.norm()
+        full = (h * vhat).sum(dim=-1)
+        out = directional_ablation(h, vhat, factor=0.5)
+        remaining = (out * vhat).sum(dim=-1)
+        assert torch.allclose(remaining, 0.5 * full, atol=1e-5)
+
+    def test_orthogonal_component_preserved(self):
+        h = torch.randn(2, 5, 8)
+        v = torch.zeros(8)
+        v[0] = 1.0
+        out = directional_ablation(h, v, factor=1.0)
+        # Only dimension 0 (the v direction) changes; dims 1.. are untouched.
+        assert torch.allclose(out[..., 1:], h[..., 1:])
+        assert torch.allclose(out[..., 0], torch.zeros_like(out[..., 0]), atol=1e-6)

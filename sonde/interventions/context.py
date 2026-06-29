@@ -1,32 +1,37 @@
-"""InterventionContext — unified read+write context over an nnterp model.
+"""InterventionContext — a reusable buffer of steering operations for nnterp.
 
-R-1 scope: additive steering only. The context buffers ``add_steering`` calls
-and replays them inside ``model.trace`` / ``model.generate``. Per-position
-``TokenSelector`` integration, ``project_subtract`` mode, activation patching,
-and per-head steering land in subsequent PRs (R-2 onward).
+It buffers ``add_steering`` calls and replays them via :meth:`apply`, which must
+be invoked **inside a literal** ``with model.trace(...)`` or
+``with model.generate(...)`` block. nnsight discovers traced operations by
+introspecting that block's source, so steers cannot be applied from a wrapper
+context manager — they must be issued from within the user's own ``with`` block.
+This constraint is verified against gpt2 (see ``docs/intervention_design.md``).
+
+Supported modes: ``additive`` (add ``factor·v̂``) and ``project_subtract``
+(directional ablation ``h - factor·(h·v̂)v̂``). Both reapply on every decoded
+token when used inside ``model.generate``.
 
 Usage::
 
-    from interventions import InterventionContext
+    from sonde.interventions import InterventionContext
 
-    # Programmatic: ad-hoc
-    ctx = InterventionContext(model)
-    with ctx.trace("The weather today is"):
-        ctx.add_steering(layers=[1, 3], vector=v, factor=0.5)
+    # Read logits under an additive steer.
+    ctx = InterventionContext(model).add_steering(layers=[1, 3], vector=v, factor=0.5)
+    with model.trace("The weather today is"):
+        ctx.apply()
         logits = model.logits.save()
 
-    # Programmatic: configured once, applied across many traces
-    ctx = (
-        InterventionContext(model)
-        .add_steering(layers=[15], vector=probe.direction, factor=1.0)
+    # Ablate a probe's direction during generation (the causal probe test).
+    ctx = InterventionContext(model).add_steering(
+        layers=[probe.layer], vector=probe.direction, mode="project_subtract"
     )
-    with ctx:
-        out = ctx.generate(prompts, max_new_tokens=128)
+    with model.generate(prompts, max_new_tokens=128) as tracer:
+        ctx.apply()
+        out = model.generator.output.save()
 """
 
 from __future__ import annotations
 
-from contextlib import AbstractContextManager
 from typing import TYPE_CHECKING, Any
 
 from .steering import apply_pending_steers
@@ -37,13 +42,8 @@ if TYPE_CHECKING:
     from sonde.core.configs.params.steering_params import SteeringParams
 
 
-class InterventionContext(AbstractContextManager):
-    """Unified read+write context over an nnterp StandardizedTransformer.
-
-    Interventions are configured up-front via the chainable ``add_*`` methods
-    and applied inside ``trace(...)`` or ``generate(...)``. The same context
-    can be reused across multiple traces, or rebuilt with ``clear()``.
-    """
+class InterventionContext:
+    """A reusable buffer of steering operations over an nnterp model."""
 
     def __init__(self, model: Any):
         self.model = model
@@ -65,20 +65,19 @@ class InterventionContext(AbstractContextManager):
         """Buffer a steering operation. Returns ``self`` for chaining.
 
         Args:
-            layers: Layer index, list of indices, or the string ``"all"`` to
-                expand to ``range(model.num_layers)`` at apply time.
-            vector: Source resolvable by :func:`interventions.vectors.load_vector`
-                — a tensor, a path string, a probe instance, or a direction
-                result. Loaded once at configure time.
-            mode: ``"additive"`` (R-1). ``"project_subtract"`` raises until R-2.
-            factor: Signed strength multiplier. ``factor=0`` is a no-op.
-            normalize: If True, the vector is L2-normalised before storage.
-            positions: Position selector compatible with ``nnterp.steer`` —
-                ``None`` for every position, ``int`` or ``list[int]`` for a
-                uniform-across-batch subset. ``TokenSelector`` support lands
-                in R-2.
-            vector_key: Forwarded to ``load_vector`` for ``.safetensors`` /
-                ``.pt`` files containing multiple tensors.
+            layers: Layer index, list of indices, or ``"all"`` (expands to
+                ``range(model.num_layers)`` at configure time).
+            vector: Source resolvable by :func:`sonde.interventions.load_vector`
+                — a tensor, a path, a probe, or a direction result.
+            mode: ``"additive"`` or ``"project_subtract"`` (directional ablation).
+            factor: meaning depends on ``mode``. ``additive``: signed steering
+                strength (activation units; ``0`` is a no-op). ``project_subtract``:
+                ablation fraction (``1.0`` fully removes the direction).
+            normalize: L2-normalise the vector before storage.
+            positions: ``None`` (every position), ``int``, or ``list[int]``
+                (uniform across batch). Supported for ``additive`` only;
+                ``project_subtract`` ablates every position.
+            vector_key: key for multi-tensor ``.safetensors`` / ``.pt`` sources.
         """
         if mode not in ("additive", "project_subtract"):
             raise ValueError(
@@ -86,11 +85,7 @@ class InterventionContext(AbstractContextManager):
                 "'project_subtract'."
             )
         resolved_layers = self._resolve_layers(layers)
-        resolved_vector = load_vector(
-            vector,
-            key=vector_key,
-            normalize=normalize,
-        )
+        resolved_vector = load_vector(vector, key=vector_key, normalize=normalize)
         self._steers.append(
             PendingSteer(
                 layers=resolved_layers,
@@ -114,29 +109,16 @@ class InterventionContext(AbstractContextManager):
 
     # ── execution ─────────────────────────────────────────────────────────
 
-    def trace(self, *args: Any, **kwargs: Any) -> _AppliedTrace:
-        """Return a context manager equivalent to ``model.trace(...)`` that
-        applies all pending interventions inside the trace.
+    def apply(self) -> None:
+        """Replay every pending intervention against the model.
+
+        Call this **inside** a literal ``with model.trace(...)`` or
+        ``with model.generate(...)`` block.
         """
-        inner = self.model.trace(*args, **kwargs)
-        return _AppliedTrace(inner, on_enter=self._apply)
+        apply_pending_steers(self.model, self._steers)
 
-    def generate(self, *args: Any, **kwargs: Any) -> Any:
-        """Run ``model.generate(...)`` under the configured interventions.
-
-        Interventions are applied inside the underlying generation tracer so
-        they fire on every decoded token automatically.
-        """
-        tracer = self.model.generate(*args, **kwargs)
-        with tracer:
-            self._apply()
-        return tracer
-
-    def __enter__(self) -> InterventionContext:  # for `with ctx:` ergonomics
-        return self
-
-    def __exit__(self, *_exc: Any) -> None:
-        return None
+    # Backwards-compatible private alias.
+    _apply = apply
 
     # ── classmethod constructors ──────────────────────────────────────────
 
@@ -148,9 +130,8 @@ class InterventionContext(AbstractContextManager):
     ) -> InterventionContext:
         """Build a context from declarative ``SteeringParams`` blocks.
 
-        ``steering`` may be a single :class:`SteeringParams` or a list (each is
-        added as a separate operation; order is preserved). Blocks with
-        ``enabled=False`` are skipped.
+        ``steering`` may be a single block or a list (added in order). Blocks
+        with ``enabled=False`` are skipped.
         """
         ctx = cls(model)
         if steering is None:
@@ -171,10 +152,6 @@ class InterventionContext(AbstractContextManager):
 
     # ── internals ─────────────────────────────────────────────────────────
 
-    def _apply(self) -> None:
-        """Replay every pending intervention. Caller must be inside a trace."""
-        apply_pending_steers(self.model, self._steers)
-
     def _resolve_layers(self, layers: int | list[int] | str) -> list[int]:
         if isinstance(layers, str):
             if layers.lower() != "all":
@@ -193,40 +170,20 @@ class InterventionContext(AbstractContextManager):
             if not resolved:
                 raise ValueError("layers list cannot be empty.")
             return resolved
-        raise TypeError(  # pyright: ignore[reportUnreachable]
+        raise TypeError(
             f"layers must be int, list[int], or 'all'; got {type(layers).__name__}."
         )
 
 
-class _AppliedTrace(AbstractContextManager):
-    """Wraps an nnterp/nnsight trace context manager so that pending
-    interventions are applied immediately after entering the trace.
-    """
-
-    def __init__(self, inner: AbstractContextManager, *, on_enter: Any):
-        self._inner = inner
-        self._on_enter = on_enter
-
-    def __enter__(self) -> Any:
-        result = self._inner.__enter__()
-        self._on_enter()
-        return result
-
-    def __exit__(self, *exc: Any) -> Any:
-        return self._inner.__exit__(*exc)
-
-
 def _block_factor(block: Any) -> float:
-    """Resolve the steering strength on a SteeringParams block.
+    """Resolve the strength field on a SteeringParams block.
 
-    Reads ``block.factor`` (a property aliasing ``strength``) if present, falling
-    back to ``block.strength`` so any duck-typed config object with either name
-    works.
+    Prefers ``factor`` (canonical) and falls back to ``strength`` (deprecated
+    alias) so older YAML keeps working.
     """
-    value = getattr(block, "factor", None)
-    if value is not None:
-        return float(value)
-    return float(getattr(block, "strength", 1.0))
+    if getattr(block, "factor", None) is not None:
+        return float(block.factor)
+    return float(getattr(block, "strength", 1.0) or 1.0)
 
 
 __all__ = ["InterventionContext"]

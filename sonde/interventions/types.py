@@ -12,13 +12,14 @@ class PendingSteer:
     """A configured-but-not-yet-applied steering operation.
 
     Vectors are stored normalised (unit L2) when ``normalize=True`` was used at
-    construction time; ``factor`` carries the signed strength so additive and
-    project-subtract modes share a single vector representation.
+    construction time. ``factor``'s meaning depends on ``mode``: for
+    ``"additive"`` it is the signed steering strength; for ``"project_subtract"``
+    it is the ablation fraction (``1.0`` = full directional ablation).
 
     ``positions`` mirrors ``nnterp.StandardizedTransformer.steer``'s API: ``None``
     means "every position", an ``int`` or ``list[int]`` is uniform across the
-    batch. Per-row position resolution (``TokenSelector``-driven) is deferred to
-    R-2.
+    batch (additive mode only). Per-row position resolution
+    (``TokenSelector``-driven) is future work.
     """
 
     layers: list[int]

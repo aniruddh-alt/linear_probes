@@ -15,6 +15,88 @@ deferred — see [§9](#9-out-of-scope-deploy) for the explicit boundary.
 
 ---
 
+## Status (2026-06): implemented + empirically verified
+
+The `sonde.interventions` package now implements additive steering **and**
+directional ablation (`project_subtract`). The two highest-risk assumptions in
+this design (the original §10 open questions) were verified on `gpt2` (CPU)
+before building on them:
+
+| Question | Verdict | Evidence |
+|---|---|---|
+| Can we *write* `layers_output[L]` for directional ablation? | **Yes** | After `h ← h − (h·v̂)v̂` the residual's projection onto `v̂` drops from ~55 to ~2e-5 at the next layer's input. |
+| Does steering reapply across `generate()` decode steps? | **Yes** | An additive steer changes 6/8 greedily-decoded tokens (spread across positions), not just the first — so it fires every step. |
+| Is composition of multiple steers order-significant? | Yes (unchanged) | Apply in YAML/config order; documented as non-commutative. |
+
+**API correction — the verified pattern.** nnsight discovers traced operations
+by introspecting the *source of the literal `with` block*. A wrapper context
+manager (`with ctx.trace(...)`) therefore breaks tracing with
+`WithBlockNotFoundError`. The shipped API instead applies buffered steers via
+`ctx.apply()` **inside the user's own `with` block**:
+
+```python
+ctx = InterventionContext(model).add_steering(
+    layers=[probe.layer], vector=probe.direction, mode="project_subtract",
+)
+# Causal probe test — does the probe's direction *cause* the behaviour?
+with model.generate(prompts, max_new_tokens=128) as tracer:
+    ctx.apply()                       # reapplies on every decoded token
+    out = model.generator.output.save()
+# Forward-pass read:
+with model.trace(prompt):
+    ctx.apply()
+    logits = model.logits.save()
+```
+
+The §3 examples below that use `with ctx.trace(...)` are superseded by this
+pattern.
+
+**`factor` semantics (mode-dependent).** A single `factor` field carries
+different meaning per mode, documented on `add_steering`/`PendingSteer`:
+- `additive`: signed steering strength in activation units (`SteeringParams`
+  legacy default `10.0`); `factor=0` is a no-op.
+- `project_subtract`: ablation *fraction* in `[0, 1]`; `factor=1.0` fully
+  removes the direction, `0.0` is a no-op. (A `10.0` default is meaningless
+  here — set `factor` explicitly for ablation recipes.)
+
+### 7.5 Scientific controls for causal claims (required)
+
+Mechanical tests (the projection identity, masking locality, vector loading in
+§7.1) prove the *plumbing*. They do **not** establish that ablating a probe's
+direction *causes* a behaviour. Any causal claim from this layer must report:
+
+1. **Random-direction control.** Repeat the ablation with a random unit vector
+   of matched norm at the same layers/positions. The behaviour must move under
+   the *real* direction and **not** under the random one. This is the
+   intervention-side analogue of the shuffled-label / random-feature controls
+   the probe sweep already runs.
+2. **Capability preservation.** Ablation on *off-target* prompts (e.g. harmless
+   prompts for a refusal direction) must leave behaviour ~unchanged — measured
+   by KL on next-token distributions or a small benchmark slice. A direction
+   that simply breaks the model "reduces refusal" trivially and is not a
+   finding.
+3. **Both arms.** Report ablation on positive prompts (behaviour drops) *and*
+   addition on negative prompts (behaviour induced). The API supports both via
+   `mode`/`factor` sign; a one-armed result is weak evidence.
+4. **Patching asserts a downstream effect.** An activation-patch test must show
+   the *output* changed (logits differ from the un-patched baseline / match the
+   source-context prediction), not merely that the written tensor reads back.
+5. **No bit-exact cross-implementation gate.** Comparing the HF-hook path and
+   the nnsight path by raw-text equality is flaky (different kernels schedule
+   differently, esp. in bf16). Compare greedy-decoded token *ids* with a
+   logit `atol` fallback.
+
+`experiments/refusal_probing/` is the worked example: train a refusal probe →
+take its direction → `project_subtract` during generation → compare refusal rate
+to baseline **and** to the random-direction control, on a held-out prompt set.
+
+> Validation note: these controls require real model runs (a GPU + an
+> instruction-tuned model for the refusal case). The toolkit verifies the
+> *mechanism* on gpt2/CPU; the *scientific* conclusion is the researcher's to
+> establish by eyeballing real generations and reporting the controls above.
+
+---
+
 ## 0. Why now
 
 The toolkit has two parallel paths into the same model:
@@ -505,6 +587,11 @@ config dataclass from this design.
 ---
 
 ## 10. Open questions
+
+> **Update (2026-06):** Q2 (composition order) and Q3 (generate reapplication)
+> are resolved — see the Status section at the top. The layer-write path for
+> directional ablation is verified. Q1 (per-head proxies) and Q4 (bias term)
+> remain open and gate the per-head ITI work.
 
 1. **Does nnterp expose attention input/output proxies that survive a write?**
    Required for per-head steering (PR-6). Need to verify against current
