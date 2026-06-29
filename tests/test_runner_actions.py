@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 import torch
 
 from sonde.activation.storage import save_extraction
@@ -57,10 +58,12 @@ class TestProbeSweepAction:
         )
         result = dispatch_action(cfg)
         assert result.summary["status"] == "completed"
-        assert result.summary["best_layer"].startswith("layers_output:")
+        # Layer 1 is the more separable layer (sep 2.0 vs 0.5) and must be picked.
+        assert result.summary["best_layer"] == "layers_output:1"
+        assert result.summary["test_auroc"] >= 0.9
         art = ProbeArtifact.load(result.artifacts["probe"])
         assert art.direction.numel() == 12
-        assert art.layer in (0, 1)
+        assert art.layer == 1
 
     def test_probe_sweep_is_deterministic(self, tmp_path):
         manifest = _write_synthetic_extraction(tmp_path)
@@ -110,3 +113,91 @@ class TestDiffMeansAction:
         art = ProbeArtifact.load(result.artifacts["direction"])
         assert art.direction.numel() == 12
         assert art.metadata["method"] == "diff_means"
+        # Separation lives in feature dim 0, so the direction must point there.
+        assert int(art.direction.abs().argmax()) == 0
+
+
+class TestControlSanityGuard:
+    def test_probe_sweep_control_sanity_raises_when_real_not_above_controls(self):
+        from sonde.probes.sweep import LayerProbeSweepRunner
+
+        runner = LayerProbeSweepRunner()
+        controls = {
+            "real": {"auroc_mean": 0.55},
+            "shuffled_labels": {"auroc_mean": 0.60},
+            "random_features": {"auroc_mean": 0.50},
+        }
+        with pytest.raises(ValueError, match="Control sanity check failed"):
+            runner._enforce_control_sanity(controls)
+
+    def test_probe_sweep_control_sanity_passes_when_real_above(self):
+        from sonde.probes.sweep import LayerProbeSweepRunner
+
+        runner = LayerProbeSweepRunner()
+        controls = {
+            "real": {"auroc_mean": 0.95},
+            "shuffled_labels": {"auroc_mean": 0.50},
+            "random_features": {"auroc_mean": 0.52},
+        }
+        runner._enforce_control_sanity(controls)  # no raise
+
+    def test_diff_means_control_sanity_raises(self):
+        from sonde.directions.sweep import DiffMeansSweepRunner
+
+        runner = DiffMeansSweepRunner()
+        controls = {
+            "real": {"auroc_mean": 0.50},
+            "shuffled_labels": {"auroc_mean": 0.60},
+        }
+        with pytest.raises(ValueError, match="Control sanity check failed"):
+            runner._enforce_control_sanity(controls)
+
+
+class TestExtractAction:
+    def test_extract_action_writes_loadable_manifest(self, tmp_path, monkeypatch):
+        import sonde.activation as activation_pkg
+        from sonde.activation.storage import load_extraction_manifest, save_extraction
+        from sonde.core.configs.extract_config import ExtractConfig
+
+        # Stub the extractor so no model is needed: it writes a real artifact.
+        class _StubExtractor:
+            def __init__(self, *, model, extraction):
+                self.extraction = extraction
+
+            def extract(self, bundle):
+                import torch
+
+                result = {
+                    "model": {"name": "stub"},
+                    "requested": ["layers_output:0"],
+                    "activations": {"layers_output:0": torch.randn(len(bundle.ids), 4)},
+                    "sample_ids": list(bundle.ids),
+                    "labels": list(bundle.labels),
+                }
+                result["storage"] = save_extraction(
+                    result, self.extraction.save_path, overwrite=True
+                )
+                return result
+
+        monkeypatch.setattr(activation_pkg, "ActivationExtractor", _StubExtractor)
+
+        inp = tmp_path / "data.jsonl"
+        inp.write_text(
+            '{"id": "a", "text": "hello", "label": 1}\n'
+            '{"id": "b", "text": "world", "label": 0}\n',
+            encoding="utf-8",
+        )
+        cfg = ExtractConfig.from_dict(
+            {
+                "run_name": "ext",
+                "action": "extract",
+                "model": {"model_name": "stub"},
+                "extraction": {"activations": ["layers_output:0"]},
+                "io": {"input_path": str(inp), "output_dir": str(tmp_path / "out")},
+            }
+        )
+        result = dispatch_action(cfg)
+        manifest_path = result.artifacts["extraction_path"]
+        assert manifest_path.endswith("_manifest.json")
+        loaded = load_extraction_manifest(manifest_path)
+        assert loaded["sample_ids"] == ["a", "b"]

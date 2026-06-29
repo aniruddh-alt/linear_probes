@@ -51,8 +51,11 @@ def resolve_storage_paths(save_path: str | Path) -> tuple[Path, Path]:
     """Return ``(manifest_path, safetensors_path)`` for an artifact base path."""
     base = Path(save_path)
     base = base.with_suffix("") if base.suffix in {".pt", ".json"} else base
+    # Derive BOTH names from the full base.name so a dotted stem (e.g.
+    # "run.v2") doesn't split the manifest and tensors onto different stems or
+    # collide distinct paths via Path.with_suffix dropping the last segment.
     manifest_path = base.parent / f"{base.name}_manifest.json"
-    safetensors_path = base.with_suffix(".safetensors")
+    safetensors_path = base.parent / f"{base.name}.safetensors"
     return manifest_path, safetensors_path
 
 

@@ -68,15 +68,18 @@ def evaluate_projection(
 ) -> dict[str, float]:
     """Evaluate classification by projecting features onto a direction vector.
 
-    Scores = features @ direction. AUROC computed from raw scores.
-    For accuracy/F1: if threshold is None, uses median of scores.
+    Scores = features @ direction. AUROC (rank-based, threshold-free) is the
+    primary metric. Accuracy/precision/recall/F1 use ``threshold``; when it is
+    ``None`` the median of *these* scores is used, so those threshold metrics are
+    in-sample and optimistic — prefer AUROC for comparisons, or pass a threshold
+    fit on a separate split.
     """
     scores = features.float() @ direction.float()
     labels = labels.long()
 
-    probs = torch.sigmoid(scores)
-    auroc_metric = BinaryAUROC()
-    auroc = float(auroc_metric(probs, labels).item())
+    # AUROC is invariant to any monotonic transform of the scores, so feed the
+    # raw projection directly (no pointless sigmoid that implies calibration).
+    auroc = float(BinaryAUROC()(scores, labels).item())
 
     if threshold is None:
         threshold = float(scores.median().item())

@@ -397,6 +397,9 @@ def _action_pipeline(cfg: PipelineConfig) -> RunResult:
     )
 
     bundle = ProbingSampleBuilder.from_iterable(rows).to_samples(text_key="text")
+    # Realign labels to the bundle: to_samples drops empty-text rows, so the raw
+    # `labels` list (length N) can be longer than the bundle/extraction.
+    labels = [int(label) for label in bundle.labels if label is not None]
     train_idx, val_idx, test_idx = bundle.train_val_test_split(
         train_fraction=cfg.split.train_fraction,
         val_fraction=cfg.split.val_fraction,
@@ -455,10 +458,12 @@ def _action_pipeline(cfg: PipelineConfig) -> RunResult:
         print("-" * 60)
 
         m = best_probe.trainer.model
-        w = getattr(m, "W_q", None)
-        if w is None:
-            w = m.linear.weight  # type: ignore[union-attr]
-        input_dim = int(w.shape[0])  # type: ignore[index]
+        w_q = getattr(m, "W_q", None)
+        if w_q is not None:
+            input_dim = int(w_q.shape[0])  # attention probe: (input_dim, n_heads)
+        else:
+            # linear readout weight is (num_classes, input_dim) -> feature axis is -1
+            input_dim = int(m.linear.weight.shape[-1])  # type: ignore[union-attr]
         best_state = best_probe.trainer.model.state_dict()
 
         ood_extractor = ActivationExtractor(
@@ -492,6 +497,10 @@ def _action_pipeline(cfg: PipelineConfig) -> RunResult:
             ood_bundle = ProbingSampleBuilder.from_iterable(ood_rows).to_samples(
                 text_key="text"
             )
+            # Realign to the (possibly empty-text-filtered) bundle.
+            ood_labels = [
+                int(label) for label in ood_bundle.labels if label is not None
+            ]
             ood_extraction = ood_extractor.extract(ood_bundle)
 
             ood_dataset = ProbingDataset.from_extraction_result(

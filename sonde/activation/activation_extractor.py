@@ -18,7 +18,9 @@ from sonde.dataset.samples import SampleBundle
 
 try:
     from nnterp import StandardizedTransformer
-except ModuleNotFoundError:  # pragma: no cover - exercised when optional dep missing.
+except ModuleNotFoundError:  # pragma: no cover - nnterp is a required dependency.
+    # nnterp is declared in [project].dependencies, so a correct install always
+    # has it. This guard only yields a friendlier error if it is somehow absent.
     StandardizedTransformer = None  # type: ignore[assignment]
 
 
@@ -69,8 +71,8 @@ class ActivationExtractor:
         transformer_cls = StandardizedTransformer
         if transformer_cls is None:
             raise ModuleNotFoundError(
-                "ActivationExtractor requires optional dependency 'nnterp'. "
-                "Install project dependencies before constructing the extractor."
+                "ActivationExtractor requires 'nnterp' (a core dependency of sonde). "
+                "Reinstall the package, e.g. `pip install -e .`."
             )
         self.model_params = model or ModelParams()
         self.extraction_params = extraction or ExtractionParams()

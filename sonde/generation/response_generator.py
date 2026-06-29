@@ -53,8 +53,10 @@ def _make_steering_hook(
             h = output[0]
         v = vector.to(dtype=h.dtype, device=h.device)
         if mode == "project_subtract":
+            # Ablation fraction: strength=1.0 fully removes the component along v
+            # (matches sonde.interventions.steering.directional_ablation).
             dot = (h * v).sum(dim=-1, keepdim=True)
-            h = h - dot * v
+            h = h - strength * dot * v
         elif mode == "additive":
             h = h + strength * v
         if isinstance(output, torch.Tensor):
@@ -160,7 +162,7 @@ class ResponseGenerator:
                     hook_fn = _make_steering_hook(
                         vector=self._steering_vector,
                         mode=self.steering_params.mode,
-                        strength=self.steering_params.strength,
+                        strength=self.steering_params.factor,
                     )
                     handle = layer_modules[layer_idx].register_forward_hook(hook_fn)
                     handles.append(handle)

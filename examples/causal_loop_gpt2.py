@@ -9,11 +9,13 @@ control the intervention design requires:
     collapses to ~0,
   * ablate a RANDOM direction (matched norm) -> the projection is preserved.
 
-The contrast between the real-direction and random-direction ablations is the
-causal-specificity evidence: the intervention removes exactly the targeted
-direction and nothing else. (gpt2 is a base model with no "refusal"; the
-behavioural refusal experiment needs an instruction-tuned model + GPU — see
-docs/intervention_design.md 7.5.)
+The contrast between the real-direction and random-direction ablations is a
+mechanism sanity check: the write removes the targeted component and leaves an
+unrelated (near-orthogonal) direction essentially untouched. It is NOT full
+behavioural specificity — that requires an off-target capability-preservation
+measure (docs/intervention_design.md §7.5 control #2) and, for refusal
+specifically, an instruction-tuned model + GPU. gpt2 is a base model with no
+"refusal" behaviour.
 
 Run:  python examples/causal_loop_gpt2.py
 """
@@ -136,8 +138,9 @@ def main() -> dict[str, float]:
     print("   is numerically degenerate — the projection-magnitude row is the")
     print("   honest measure.)")
     print("-" * 64)
-    print("Specificity: ablating the trained direction removes the concept's")
-    print("linear component; ablating a random direction does not.")
+    print("Mechanism check: ablating the trained direction removes the concept's")
+    print("linear component; ablating a random (near-orthogonal) direction does not.")
+    print("This is NOT behavioural specificity — see docs/intervention_design.md §7.5.")
     return {
         "base_proj": base_proj,
         "ablated_proj": abl_proj,

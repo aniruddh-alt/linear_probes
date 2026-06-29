@@ -49,7 +49,7 @@ One YAML drives the whole thing. Activation → probe → layer-resolved answer,
 ## What `sonde` does
 
 - **Extract activations** from any HuggingFace transformer at any layer, token, or internal module.
-- **Train linear probes** — logistic regression, difference-of-means, ridge, and more — on those activations.
+- **Train linear probes** — logistic-regression (linear) plus mean / max / softmax / attention / max-rolling-mean pooling — on those activations, with a separate difference-of-means direction estimator (`diff_means`).
 - **Sweep** across layers, token positions, and probe architectures to find *where* in the model a concept lives.
 - **Report** test-set metrics, selectivity controls, and concept directions usable for downstream steering.
 
@@ -224,7 +224,8 @@ and write a probe artifact (the concept direction) to the output directory.
 ## Learn more
 
 - **[docs/linear-probes-primer.md](docs/linear-probes-primer.md)** — a presentation-ready primer on linear probes: what they are, how to train them, where they're used, and the key papers.
-- **`examples/refusal_probing/`** — a full end-to-end refusal-detection pipeline.
+- **`examples/causal_loop_gpt2.py`** — the full extract → probe → ablate → measure loop on gpt2, with a specificity control.
+- **`experiments/refusal_probing/`** — a worked end-to-end refusal-detection pipeline.
 
 ## Contributing
 

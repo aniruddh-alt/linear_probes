@@ -86,9 +86,11 @@ direction *causes* a behaviour. Any causal claim from this layer must report:
    differently, esp. in bf16). Compare greedy-decoded token *ids* with a
    logit `atol` fallback.
 
-`experiments/refusal_probing/` is the worked example: train a refusal probe →
-take its direction → `project_subtract` during generation → compare refusal rate
-to baseline **and** to the random-direction control, on a held-out prompt set.
+`examples/causal_loop_gpt2.py` implements control #1 (the random-direction
+mechanism check) end-to-end on gpt2/CPU. `experiments/refusal_probing/` is the
+behavioural refusal pipeline (instruction-tuned model + GPU); controls #2–#4
+(capability preservation, both arms, patching downstream effect) are not yet
+implemented in-repo and are the researcher's to add per the note below.
 
 > Validation note: these controls require real model runs (a GPU + an
 > instruction-tuned model for the refusal case). The toolkit verifies the

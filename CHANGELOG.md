@@ -6,6 +6,8 @@ API may change between minor versions.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-06-28
+
 ### Packaging
 - Moved every module under a single `sonde/` package (`sonde.activation`,
   `sonde.dataset`, `sonde.probes`, `sonde.interventions`, …). Previously the

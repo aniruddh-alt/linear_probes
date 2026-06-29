@@ -158,6 +158,24 @@ class TestSteeringHooks:
         expected = torch.tensor([[[0.0, 4.0, 5.0]]])
         assert torch.allclose(result[0], expected, atol=1e-5)
 
+    def test_project_subtract_hook_honors_strength(self):
+        # strength is the ablation fraction: 0.5 removes half the component along v,
+        # matching sonde.interventions.steering.directional_ablation(factor=0.5).
+        vec = torch.tensor([1.0, 0.0, 0.0])
+        hook = _make_steering_hook(vec, mode="project_subtract", strength=0.5)
+
+        h = torch.tensor([[[3.0, 4.0, 5.0]]])  # (1, 1, 3)
+        result = hook(None, None, (h,))
+
+        expected = torch.tensor([[[1.5, 4.0, 5.0]]])  # 3 - 0.5*3 along dim 0
+        assert torch.allclose(result[0], expected, atol=1e-5)
+
+        from sonde.interventions.steering import directional_ablation
+
+        assert torch.allclose(
+            result[0], directional_ablation(h, vec, factor=0.5), atol=1e-5
+        )
+
     def test_additive_hook(self):
         vec = torch.tensor([1.0, 0.0, 0.0])
         hook = _make_steering_hook(vec, mode="additive", strength=5.0)

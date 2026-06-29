@@ -60,6 +60,13 @@ class DiffMeansSweepRunner:
                 labels=labels,
                 positive_indices=positive_indices,
             )
+            if dataset.sequence_mode:
+                raise ValueError(
+                    "diff_means requires pooled (N, D) features, but activation "
+                    f"key '{key}' is in sequence mode (per-token tensors). "
+                    "Re-extract with a token_index or token_selector (e.g. the "
+                    "last token) so each sample is a single vector."
+                )
             current_labels = [int(label) for label in dataset.labels.tolist()]
             if dataset_labels is None:
                 dataset_labels = current_labels
