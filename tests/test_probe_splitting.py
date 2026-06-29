@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import unittest
 
-from dataset import ProbingSampleBuilder
-from dataset.splitting import stratified_train_val_test_split
+from sonde.dataset import ProbingSampleBuilder
+from sonde.dataset.splitting import stratified_train_val_test_split
 
 
 class ProbeSplittingTests(unittest.TestCase):

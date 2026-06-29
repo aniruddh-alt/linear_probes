@@ -5,9 +5,9 @@ import unittest
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 
-from core.configs import ProbeParams
-from probes.architectures import build_probe
-from probes.linear import (
+from sonde.core.configs import ProbeParams
+from sonde.probes.architectures import build_probe
+from sonde.probes.linear import (
     BinaryLinearProbeTrainer,
     BinaryProbeTrainer,
     run_probe_with_controls,

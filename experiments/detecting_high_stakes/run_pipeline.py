@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from runners.experiment_runner import run_experiment
+from sonde.runners.experiment_runner import run_experiment
 
 if __name__ == "__main__":
     config_path = Path(__file__).parent / "config.yaml"

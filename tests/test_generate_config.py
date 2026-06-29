@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.configs.generate_config import GenerateConfig
+from sonde.core.configs.generate_config import GenerateConfig
 
 
 class TestGenerateConfig:

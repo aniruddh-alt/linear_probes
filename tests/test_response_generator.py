@@ -7,18 +7,18 @@ from unittest.mock import MagicMock, patch
 import torch
 from safetensors.torch import save_file
 
-from core.configs.params.generation_params import GenerationParams
-from core.configs.params.model_params import ModelParams
-from core.configs.params.steering_params import SteeringParams
-from dataset.samples import StringDataset
-from dataset.types import SampleBundle
-from generation.response_generator import ResponseGenerator, _make_steering_hook
-from generation.types import GenerationResult
+from sonde.core.configs.params.generation_params import GenerationParams
+from sonde.core.configs.params.model_params import ModelParams
+from sonde.core.configs.params.steering_params import SteeringParams
+from sonde.dataset.samples import StringDataset
+from sonde.dataset.types import SampleBundle
+from sonde.generation.response_generator import ResponseGenerator, _make_steering_hook
+from sonde.generation.types import GenerationResult
 
 
 class TestResponseGenerator:
-    @patch("generation.response_generator.AutoModelForCausalLM")
-    @patch("generation.response_generator.AutoTokenizer")
+    @patch("sonde.generation.response_generator.AutoModelForCausalLM")
+    @patch("sonde.generation.response_generator.AutoTokenizer")
     def test_generate_from_strings(self, mock_tok_cls, mock_model_cls):
         mock_tok = MagicMock()
         mock_tok.pad_token_id = 0
@@ -46,8 +46,8 @@ class TestResponseGenerator:
         assert len(result.responses) == 2
         assert result.labels == [None, None]
 
-    @patch("generation.response_generator.AutoModelForCausalLM")
-    @patch("generation.response_generator.AutoTokenizer")
+    @patch("sonde.generation.response_generator.AutoModelForCausalLM")
+    @patch("sonde.generation.response_generator.AutoTokenizer")
     def test_generate_from_sample_bundle(self, mock_tok_cls, mock_model_cls):
         mock_tok = MagicMock()
         mock_tok.pad_token_id = 0
@@ -82,8 +82,8 @@ class TestResponseGenerator:
 
 
 class TestSteeringVectorLoading:
-    @patch("generation.response_generator.AutoModelForCausalLM")
-    @patch("generation.response_generator.AutoTokenizer")
+    @patch("sonde.generation.response_generator.AutoModelForCausalLM")
+    @patch("sonde.generation.response_generator.AutoTokenizer")
     def test_load_pt_vector(self, mock_tok_cls, mock_model_cls, tmp_path):
         mock_tok = MagicMock()
         mock_tok.pad_token_id = 0
@@ -108,8 +108,8 @@ class TestSteeringVectorLoading:
         assert gen._steering_vector.shape == (64,)
         assert torch.allclose(gen._steering_vector.norm(), torch.tensor(1.0), atol=1e-5)
 
-    @patch("generation.response_generator.AutoModelForCausalLM")
-    @patch("generation.response_generator.AutoTokenizer")
+    @patch("sonde.generation.response_generator.AutoModelForCausalLM")
+    @patch("sonde.generation.response_generator.AutoTokenizer")
     def test_load_safetensors_vector(self, mock_tok_cls, mock_model_cls, tmp_path):
         mock_tok = MagicMock()
         mock_tok.pad_token_id = 0
@@ -134,8 +134,8 @@ class TestSteeringVectorLoading:
         assert gen._steering_vector is not None
         assert gen._steering_vector.shape == (64,)
 
-    @patch("generation.response_generator.AutoModelForCausalLM")
-    @patch("generation.response_generator.AutoTokenizer")
+    @patch("sonde.generation.response_generator.AutoModelForCausalLM")
+    @patch("sonde.generation.response_generator.AutoTokenizer")
     def test_no_steering_by_default(self, mock_tok_cls, mock_model_cls):
         mock_tok = MagicMock()
         mock_tok.pad_token_id = 0

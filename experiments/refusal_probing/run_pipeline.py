@@ -7,10 +7,10 @@ from pathlib import Path
 
 import torch
 
-from activation import ActivationExtractor
-from core.configs import ExtractionParams, ModelParams, ProbeParams, SweepParams
-from dataset import ProbingSampleBuilder
-from probes import LayerProbeSweepRunner, ProbeAnalyzer
+from sonde.activation import ActivationExtractor
+from sonde.core.configs import ExtractionParams, ModelParams, ProbeParams, SweepParams
+from sonde.dataset import ProbingSampleBuilder
+from sonde.probes import LayerProbeSweepRunner, ProbeAnalyzer
 
 DATA_DIR = Path("experiments/refusal_probing/data")
 MODEL_NAME = "meta-llama/Llama-3.1-8B-Instruct"

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from core.configs.params.steering_params import SteeringParams
+from sonde.core.configs.params.steering_params import SteeringParams
 
 
 class TestSteeringParams:

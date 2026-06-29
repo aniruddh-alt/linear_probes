@@ -5,7 +5,7 @@ import unittest
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 
-from probes.architectures import (
+from sonde.probes.architectures import (
     AttentionProbe,
     BaseProbe,
     LinearProbe,
@@ -268,8 +268,8 @@ class BaseProbeBackwardCompatTest(unittest.TestCase):
 class EndToEndProbeTest(unittest.TestCase):
     def test_all_probe_types_train_and_evaluate(self) -> None:
         """Smoke test: every registered probe type can train and evaluate."""
-        from core.configs import ProbeParams
-        from probes.linear import BinaryProbeTrainer
+        from sonde.core.configs import ProbeParams
+        from sonde.probes.linear import BinaryProbeTrainer
 
         torch.manual_seed(42)
         for probe_type in [

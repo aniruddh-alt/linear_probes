@@ -117,7 +117,7 @@ def test_pipeline_end_to_end_with_mocks(tmp_path: Path, monkeypatch) -> None:
             self.model = _FakeModel()
 
         def generate(self, bundle: Any) -> Any:
-            from generation.types import GenerationResult
+            from sonde.generation.types import GenerationResult
 
             ids = list(bundle.ids)
             # For risky ids (200+), half will be correctly flagged ('1'), half missed ('0') → FN.
@@ -199,7 +199,7 @@ def test_pipeline_end_to_end_with_mocks(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(run_pipeline, "_run_llm_judge", _fake_llm_judge)
 
     # Lower the SweepRunner's control sanity to tolerate the tiny fake data.
-    from probes.sweep import LayerProbeSweepRunner
+    from sonde.probes.sweep import LayerProbeSweepRunner
 
     original_init = LayerProbeSweepRunner.__init__
 

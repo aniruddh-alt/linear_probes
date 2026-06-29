@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dataset.samples import StringDataset
-from dataset.types import SampleBundle
+from sonde.dataset.samples import StringDataset
+from sonde.dataset.types import SampleBundle
 
 
 class TestSampleBundleResponses:

@@ -9,14 +9,14 @@ from unittest.mock import patch
 
 import torch
 
-from core.configs import ProbeParams, SweepParams
-from probes.analyze import ProbeAnalyzer
-from probes.run_manifest import (
+from sonde.core.configs import ProbeParams, SweepParams
+from sonde.probes.analyze import ProbeAnalyzer
+from sonde.probes.run_manifest import (
     compute_dataset_fingerprint,
     hash_indices,
     write_run_manifest,
 )
-from probes.types import TrainedLayerProbe
+from sonde.probes.types import TrainedLayerProbe
 
 
 class ProbeManifestAndAnalyzerTests(unittest.TestCase):

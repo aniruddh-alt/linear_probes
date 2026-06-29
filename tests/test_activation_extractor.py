@@ -9,13 +9,13 @@ import torch
 from safetensors.torch import save_file
 from torch.utils.data import DataLoader
 
-from activation.activation_extractor import ActivationExtractor
-from activation.storage import (
+from sonde.activation.activation_extractor import ActivationExtractor
+from sonde.activation.storage import (
     load_activation_value,
     load_extraction_manifest,
     resolve_activation_key,
 )
-from dataset.samples import StringDataset
+from sonde.dataset.samples import StringDataset
 
 
 def _build_extractor_stub() -> ActivationExtractor:

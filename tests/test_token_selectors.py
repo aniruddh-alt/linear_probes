@@ -6,7 +6,7 @@ import unittest
 
 import torch
 
-from activation.token_selectors import (
+from sonde.activation.token_selectors import (
     AllTokens,
     Index,
     IndexList,
@@ -16,7 +16,7 @@ from activation.token_selectors import (
     TokenIdAnchor,
     TokenSelector,
 )
-from core.configs import ExtractionParams, TokenSelectorParams
+from sonde.core.configs import ExtractionParams, TokenSelectorParams
 
 
 def _hidden(batch: int, seq: int, dim: int) -> torch.Tensor:
@@ -339,7 +339,7 @@ class ExtractorSelectorResolutionTest(unittest.TestCase):
         params_selector: TokenSelectorParams | None = None,
         runtime_selector: TokenSelector | None = None,
     ):
-        from activation.activation_extractor import ActivationExtractor
+        from sonde.activation.activation_extractor import ActivationExtractor
 
         extractor = ActivationExtractor.__new__(ActivationExtractor)
         extractor.extraction_params = ExtractionParams(

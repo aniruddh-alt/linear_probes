@@ -5,9 +5,9 @@ import unittest
 
 import torch
 
-from core.configs import SweepParams
-from dataset import ProbingSampleBuilder
-from directions.sweep import DiffMeansSweepRunner
+from sonde.core.configs import SweepParams
+from sonde.dataset import ProbingSampleBuilder
+from sonde.directions.sweep import DiffMeansSweepRunner
 
 
 class DiffMeansSweepRunnerTests(unittest.TestCase):

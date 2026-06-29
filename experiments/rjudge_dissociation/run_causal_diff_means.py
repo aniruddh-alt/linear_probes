@@ -35,10 +35,10 @@ import torch
 from safetensors.torch import load_file, save_file
 from transformers import AutoTokenizer
 
-from core.configs.params.generation_params import GenerationParams
-from core.configs.params.model_params import ModelParams
-from core.configs.params.steering_params import SteeringParams
-from generation.response_generator import ResponseGenerator
+from sonde.core.configs.params.generation_params import GenerationParams
+from sonde.core.configs.params.model_params import ModelParams
+from sonde.core.configs.params.steering_params import SteeringParams
+from sonde.generation.response_generator import ResponseGenerator
 
 DATA_DIR = Path("experiments/rjudge_dissociation/data")
 CAUSAL_DIR = DATA_DIR / "causal"

@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-from core.configs.extract_config import ExtractConfig
-from core.configs.generate_config import GenerateConfig
-from core.configs.probe_config import ProbeConfig
-from runners.experiment_runner import load_run_config, run_experiment
+from sonde.core.configs.extract_config import ExtractConfig
+from sonde.core.configs.generate_config import GenerateConfig
+from sonde.core.configs.probe_config import ProbeConfig
+from sonde.runners.experiment_runner import load_run_config, run_experiment
 
 
 class TestExperimentRunner:

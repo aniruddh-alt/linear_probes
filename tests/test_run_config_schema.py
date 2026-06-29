@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from core.configs.extract_config import ExtractConfig
-from core.configs.generate_config import GenerateConfig
-from core.configs.params.model_params import ModelParams
-from core.configs.probe_config import ProbeConfig
+from sonde.core.configs.extract_config import ExtractConfig
+from sonde.core.configs.generate_config import GenerateConfig
+from sonde.core.configs.params.model_params import ModelParams
+from sonde.core.configs.probe_config import ProbeConfig
 
 
 class TestStageConfigSchemas:

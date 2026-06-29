@@ -19,25 +19,25 @@ from typing import Any
 import torch
 from omegaconf import OmegaConf
 
-from activation import ActivationExtractor
-from core.configs import (
-    ExtractionParams,
-    GenerationParams,
-    ModelParams,
-    ProbeParams,
-    SweepParams,
-)
-from dataset import ProbingSampleBuilder
-from dataset.probing_dataset import ProbingDataset
-from dataset.splitting import stratified_train_val_test_split
 from experiments.rjudge_dissociation.cells import classify_cells
 from experiments.rjudge_dissociation.metrics import (
     auroc_between_cells,
     classification_rate_at_threshold,
 )
 from experiments.rjudge_dissociation.rjudge_loader import load_rjudge_scenarios
-from generation import ResponseGenerator
-from probes import LayerProbeSweepRunner
+from sonde.activation import ActivationExtractor
+from sonde.core.configs import (
+    ExtractionParams,
+    GenerationParams,
+    ModelParams,
+    ProbeParams,
+    SweepParams,
+)
+from sonde.dataset import ProbingSampleBuilder
+from sonde.dataset.probing_dataset import ProbingDataset
+from sonde.dataset.splitting import stratified_train_val_test_split
+from sonde.generation import ResponseGenerator
+from sonde.probes import LayerProbeSweepRunner
 
 
 def _load_config(config_path: Path) -> dict[str, Any]:

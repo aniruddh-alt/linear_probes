@@ -4,6 +4,6 @@
   "pythonVersion": "3.10",
   "typeCheckingMode": "basic",
   "reportPrivateImportUsage": "none",
-  "include": ["activation", "cli", "core", "dataset", "directions", "generation", "probes", "runners"],
-  "exclude": ["**/__pycache__", ".venv", "tests"]
+  "include": ["sonde"],
+  "exclude": ["**/__pycache__", ".venv", "tests", "experiments"]
 }

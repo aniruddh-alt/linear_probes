@@ -6,11 +6,12 @@ from pathlib import Path
 
 import pytest
 
-from core.configs.probe_config import ProbeConfig
-from runners.experiment_runner import load_run_config, run_experiment
+from sonde.core.configs.probe_config import ProbeConfig
+from sonde.runners.experiment_runner import load_run_config, run_experiment
 
 QUICKSTART_PATH = (
     Path(__file__).resolve().parent.parent
+    / "sonde"
     / "configs"
     / "recipes"
     / "quickstart_probe.yaml"

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.configs.overrides import apply_dot_overrides
+from sonde.core.configs.overrides import apply_dot_overrides
 
 
 class TestConfigOverrides:
