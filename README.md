@@ -56,15 +56,23 @@ One YAML drives the whole thing. Activation → probe → layer-resolved answer,
 ## Install
 
 ```bash
-uv pip install -e .
+uv pip install -e .          # core
+uv pip install -e ".[viz]"   # + matplotlib for ProbeAnalyzer plots
+uv pip install -e ".[dev]"   # + pytest / ruff / pyright
+```
+
+Try it immediately — runs offline on bundled synthetic activations:
+
+```bash
+sonde run quickstart
 ```
 
 ## Quickstart: extract activations
 
 ```python
-from dataset import ProbingSampleBuilder
-from activation import ActivationExtractor
-from configs import ActivationConfig, ModelConfig
+from sonde import (
+    ProbingSampleBuilder, ActivationExtractor, ModelParams, ExtractionParams,
+)
 
 records = [
     {"id": "ex-1", "text": "The capital of France is", "label": 1},
@@ -73,11 +81,11 @@ records = [
 bundle = ProbingSampleBuilder.from_iterable(records).to_samples(text_key="text")
 
 extractor = ActivationExtractor(
-    ActivationConfig(
-        model_config=ModelConfig(model_name="openai-community/gpt2"),
-        save_path="artifacts/activations",
-        activations=["layers_output:*"],   # every layer
-    )
+    model=ModelParams(model_name="openai-community/gpt2"),
+    extraction=ExtractionParams(
+        save_path="artifacts/activations",   # writes .safetensors + _manifest.json
+        activations=["layers_output:*"],     # every layer
+    ),
 )
 result = extractor.extract(bundle)
 print(result["sample_ids"])
@@ -87,45 +95,45 @@ print(result["labels"])
 ## Quickstart: sweep probes across layers
 
 ```python
-from dataset import ProbingDataset, ProbingSampleBuilder
-from configs import LayerProbeSweepConfig, ProbeConfig
-from probes import LayerProbeSweepRunner
-
-dataset = ProbingDataset.from_extraction_result(
-    extraction_result,
-    activation_key="layers_output:0",
+from sonde import (
+    ProbingSampleBuilder, ProbeParams, SweepParams, LayerProbeSweepRunner,
 )
+
+# A bundle aligned to the extraction (only labels + ids matter for the split).
 records = [
-    {"id": extraction_result["sample_ids"][i], "text": f"sample-{i}", "label": int(extraction_result["labels"][i])}
-    for i in range(len(extraction_result["labels"]))
+    {"id": result["sample_ids"][i], "text": result["sample_ids"][i],
+     "label": int(result["labels"][i])}
+    for i in range(len(result["labels"]))
 ]
 bundle = ProbingSampleBuilder.from_iterable(records).to_samples(text_key="text")
 train_idx, val_idx, test_idx = bundle.train_val_test_split(
     train_fraction=0.7, val_fraction=0.15, test_fraction=0.15,
     seed=0, group_ids=bundle.ids,
 )
+
 sweep = LayerProbeSweepRunner(
-    LayerProbeSweepConfig(
-        probe=ProbeConfig(epochs=10, learning_rate=1e-2),
-        activation_targets=["layers_output:0"],
-    )
+    probe=ProbeParams(epochs=10, learning_rate=1e-2),
+    sweep=SweepParams(activation_targets=["layers_output:0"]),
 )
-result = sweep.run(
-    extraction_result,
+sweep_result = sweep.run(
+    result,
     train_indices=train_idx, val_indices=val_idx, test_indices=test_idx,
-    group_ids=extraction_result["sample_ids"],
+    labels=[int(x) for x in result["labels"]],
+    group_ids=result["sample_ids"],
     manifest_path="artifacts/probe_runs/run_manifest.json",
 )
-print(result.best_key)
-print(result.test_metrics)
-print(result.controls)
+print(sweep_result.best_key)
+print(sweep_result.test_metrics)
+print(sweep_result.controls)
 ```
 
-Load directly from a saved extraction manifest:
+Load directly from a saved extraction manifest (JSON):
 
 ```python
+from sonde import ProbingDataset
+
 dataset = ProbingDataset.from_extraction_path(
-    "artifacts/activations.pt",
+    "artifacts/activations_manifest.json",
     activation_key="layers_output:0",
 )
 ```
@@ -142,11 +150,45 @@ the filename.
 can auto-group by sample IDs by default. Set `auto_group_by_id_when_none=False` to force
 non-grouped stratification unless you pass `group_ids` explicitly.
 
+## Causal interventions
+
+A trained probe's direction is a steering / ablation vector. The
+`InterventionContext` applies it over an nnterp model; call `apply()` **inside**
+your own `with model.trace(...)` / `with model.generate(...)` block (nnsight
+discovers traced ops from that block's source):
+
+```python
+from nnterp import StandardizedTransformer
+from sonde import InterventionContext, ProbeArtifact
+
+model = StandardizedTransformer("openai-community/gpt2")
+probe = ProbeArtifact.load("artifacts/quickstart/quickstart_probe_probe.safetensors")
+
+ctx = InterventionContext(model).add_steering(
+    layers=[probe.layer], vector=probe.direction, mode="project_subtract",
+)
+with model.generate(prompts, max_new_tokens=128) as tracer:   # reapplies per token
+    ctx.apply()
+    out = model.generator.output.save()
+```
+
+`mode="project_subtract"` ablates the direction (`h − factor·(h·v̂)v̂`);
+`mode="additive"` adds `factor·v̂`. See `examples/causal_loop_gpt2.py` for the
+full extract → probe → ablate → measure loop **with the random-direction
+specificity control**, and `docs/intervention_design.md` §7.5 for the controls
+any causal claim must report.
+
 ## CLI
 
 ```bash
-sonde run -c configs/my_experiment.yaml
+sonde run quickstart                       # bundled offline demo
+sonde run -c configs/my_experiment.yaml    # your config
+sonde my_experiment.yaml -o probe.epochs=50
 ```
+
+Actions: `extract`, `generate`, `probe_sweep`, `diff_means`, `pipeline`.
+`probe_sweep` / `diff_means` read a pre-extracted artifact via `io.input_path`
+and write a probe artifact (the concept direction) to the output directory.
 
 ## What you can probe
 
