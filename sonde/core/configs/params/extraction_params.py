@@ -23,10 +23,11 @@ class ExtractionParams(BaseConfig):
     and ``docs/toolkit_audit.md`` §4 for the design rationale.
     """
 
-    save_path: str = ""
+    save_path: str | None = None
     activations: list[str] = field(default_factory=list)
     batch_size: int = 8
     token_index: int | None = -1
     token_selector: TokenSelectorParams | None = None
     remote: bool = False
     to_cpu: bool = True
+    overwrite: bool = False

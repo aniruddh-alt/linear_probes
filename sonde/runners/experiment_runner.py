@@ -140,12 +140,20 @@ def _action_extract(cfg: ExtractConfig) -> RunResult:
     builder = ProbingSampleBuilder.from_file(input_path)
     bundle = builder.to_samples(text_key="text")
 
+    # The extract action exists to write an artifact; default a path when the
+    # config leaves it unset so the result is always reusable downstream.
+    if not cfg.extraction.save_path:
+        cfg.extraction.save_path = str(Path(cfg.io.output_dir) / "extraction")
+
     extractor = ActivationExtractor(model=cfg.model, extraction=cfg.extraction)
     extraction = extractor.extract(bundle)
 
+    storage = extraction.get("storage", {})
+    manifest_path = storage.get("manifest_path", cfg.extraction.save_path)
+
     return RunResult(
         summary={"action": "extract", "num_samples": len(bundle.ids)},
-        artifacts={"extraction_path": cfg.extraction.save_path},
+        artifacts={"extraction_path": str(manifest_path)},
         metrics={"num_layers": len(extraction["requested"])},
     )
 

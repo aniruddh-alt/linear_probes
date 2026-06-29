@@ -5,13 +5,12 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 from dataclasses import fields
-from pathlib import Path
 from typing import Any, cast
 
 import torch
-from safetensors.torch import save_file
 from torch.utils.data import DataLoader, Dataset
 
+from sonde.activation.storage import save_extraction
 from sonde.activation.token_selectors import AllTokens, TokenSelector
 from sonde.activation.types import ExtractionResult, LayerSpec, ModelMetadata
 from sonde.core.configs import ExtractionParams, ModelParams
@@ -264,10 +263,7 @@ class ActivationExtractor:
             "labels": labels,
             "storage": {"mode": "in_memory"},
         }
-        result["storage"] = self._persist_result(
-            result=result,
-            save_path=Path(self.extraction_params.save_path),
-        )
+        result["storage"] = self._persist_result(result)
         return result
 
     @classmethod
@@ -605,47 +601,17 @@ class ActivationExtractor:
             )
         return tensor.long()
 
-    def _persist_result(
-        self,
-        *,
-        result: ExtractionResult,
-        save_path: Path,
-    ) -> dict[str, Any]:
-        save_path.parent.mkdir(parents=True, exist_ok=True)
-        manifest_path, safetensors_path = self._resolve_storage_paths(save_path)
-        # Skip safetensors persistence for sequence mode (list-of-tensors)
-        has_list_activations = any(
-            isinstance(v, list) for v in result["activations"].values()
-        )
-        if has_list_activations:
-            return {"mode": "in_memory"}
-        tensors = {
-            key: tensor.contiguous()
-            for key, tensor in result["activations"].items()
-            if isinstance(tensor, torch.Tensor)
-        }
-        save_file(tensors, str(safetensors_path))
-        storage: dict[str, Any] = {
-            "mode": "safetensors",
-            "manifest_path": str(manifest_path),
-            "safetensors_path": str(safetensors_path),
-        }
-        manifest: ExtractionResult = {
-            "model": result["model"],
-            "requested": result["requested"],
-            "activations": {},
-            "sample_ids": result["sample_ids"],
-            "labels": result["labels"],
-            "storage": storage,
-        }
-        torch.save(manifest, manifest_path)
-        return cast(dict[str, Any], storage)
+    def _persist_result(self, result: ExtractionResult) -> dict[str, Any]:
+        """Persist the extraction, or skip cleanly when no ``save_path`` is set.
 
-    @staticmethod
-    def _resolve_storage_paths(save_path: Path) -> tuple[Path, Path]:
-        base_path = (
-            save_path.with_suffix("") if save_path.suffix == ".pt" else save_path
+        With no ``save_path`` the extraction stays in memory (no crash); with
+        one, it is written as ``<base>.safetensors`` + ``<base>_manifest.json``
+        via :func:`sonde.activation.storage.save_extraction`, which also handles
+        sequence-mode (ragged) activations and overwrite protection.
+        """
+        save_path = self.extraction_params.save_path
+        if not save_path:
+            return {"mode": "in_memory"}
+        return save_extraction(
+            result, save_path, overwrite=self.extraction_params.overwrite
         )
-        manifest_path = base_path.parent / f"{base_path.name}_manifest.pt"
-        safetensors_path = base_path.with_suffix(".safetensors")
-        return manifest_path, safetensors_path
