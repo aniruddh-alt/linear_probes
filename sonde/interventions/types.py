@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 import torch
+
+SteeringMode = Literal["additive", "project_subtract"]
 
 
 @dataclass
@@ -25,8 +28,8 @@ class PendingSteer:
     layers: list[int]
     vector: torch.Tensor
     factor: float = 1.0
-    mode: str = "additive"
+    mode: SteeringMode = "additive"
     positions: int | list[int] | None = None
 
 
-__all__ = ["PendingSteer"]
+__all__ = ["PendingSteer", "SteeringMode"]

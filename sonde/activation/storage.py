@@ -31,20 +31,10 @@ import torch
 from safetensors import safe_open
 from safetensors.torch import load_file, save_file
 
+from sonde._pkg import sonde_version
+
 SCHEMA_VERSION = 2
 _LENGTHS_SUFFIX = "::lengths"
-
-
-def _sonde_version() -> str:
-    try:
-        from importlib.metadata import PackageNotFoundError, version
-
-        try:
-            return version("sonde")
-        except PackageNotFoundError:
-            return "unknown"
-    except Exception:  # pragma: no cover - defensive
-        return "unknown"
 
 
 def resolve_storage_paths(save_path: str | Path) -> tuple[Path, Path]:
@@ -118,7 +108,7 @@ def save_extraction(
     }
     manifest = {
         "schema_version": SCHEMA_VERSION,
-        "sonde_version": _sonde_version(),
+        "sonde_version": sonde_version(),
         "model": result.get("model"),
         "requested": list(result.get("requested", [])),
         "sample_ids": list(result.get("sample_ids", [])),
@@ -191,12 +181,11 @@ def load_extraction_manifest(
 
 
 def _looks_like_json(path: Path) -> bool:
-    try:
-        with path.open("rb") as handle:
-            head = handle.read(64).lstrip()
-        return head[:1] in (b"{", b"[")
-    except OSError:
-        return False
+    # Let an OSError propagate: an unreadable manifest should surface its real
+    # I/O error, not be silently mistaken for a legacy pickle.
+    with path.open("rb") as handle:
+        head = handle.read(64).lstrip()
+    return head[:1] in (b"{", b"[")
 
 
 def resolve_activation_key(
@@ -275,6 +264,12 @@ def load_activation_value(
             )
         padded = tensors[activation_key]
         lengths = tensors[lengths_key].long().tolist()
+        max_len = padded.shape[1]
+        if any(length > max_len for length in lengths):
+            raise ValueError(
+                f"Ragged key '{activation_key}' has a recorded length exceeding the "
+                f"padded width {max_len}; the manifest and safetensors are inconsistent."
+            )
         return [padded[i, : lengths[i]] for i in range(len(lengths))]
 
     return tensors[activation_key]

@@ -6,11 +6,11 @@ deferred — see [§9](#9-out-of-scope-deploy) for the explicit boundary.
 
 **Anchors.**
 - `docs/toolkit_audit.md` §5 — the proposed `InterventionContext` shape.
-- `generation/response_generator.py` — current hook-based steering (to be replaced).
-- `core/configs/params/steering_params.py` — existing YAML knobs (kept; extended).
-- `activation/token_selectors.py` — already provides per-position selectors used here for
+- `sonde/generation/response_generator.py` — current hook-based steering (to be replaced).
+- `sonde/core/configs/params/steering_params.py` — existing YAML knobs (kept; extended).
+- `sonde/activation/token_selectors.py` — already provides per-position selectors used here for
   per-token steering masks.
-- `directions/diff_means.py`, `probes/architectures/base.py` — sources of direction
+- `sonde/directions/diff_means.py`, `sonde/probes/architectures/base.py` — sources of direction
   vectors (`BaseProbe.direction`, `DiffMeansLayerResult.direction`).
 
 ---
@@ -362,7 +362,7 @@ patches:                             # OPTIONAL
 
 ### 4.1 `SteeringParams` changes
 
-`core/configs/params/steering_params.py` (existing):
+`sonde/core/configs/params/steering_params.py` (existing):
 
 ```python
 @dataclass
@@ -404,7 +404,7 @@ class PatchParams(BaseConfig):
 
 ### 5.1 `ResponseGenerator` — re-fronted
 
-`generation/response_generator.py` today (~200 LOC) splits into:
+`sonde/generation/response_generator.py` today (~200 LOC) splits into:
 
 | Today | After |
 |---|---|
@@ -473,7 +473,7 @@ This is what makes "train a probe → use as steering vector" a one-liner.
 
 ## 6. `TokenSelector` integration
 
-The existing `activation/token_selectors.py` selectors are reused unchanged.
+The existing `sonde/activation/token_selectors.py` selectors are reused unchanged.
 For interventions, the contract becomes a *write mask*: a `(B, S)` boolean
 tensor indicating which positions get the modification.
 
@@ -559,7 +559,7 @@ PR sequencing (each independently mergeable, no big-bang):
 |---|---|---|---|---|
 | 1 | `interventions/` skeleton + `InterventionContext` (additive only) | new package | `add_steering(mode='additive')`, `vectors.load_vector` | nothing yet |
 | 2 | Directional ablation + position masking | `interventions/steering.py` | `mode='project_subtract'`, `positions=TokenSelector` | nothing yet |
-| 3 | `ResponseGenerator` re-fronted on context | `generation/response_generator.py` | uses `StandardizedTransformer`, calls `InterventionContext` | `_make_steering_hook`, `_resolve_layer_modules`, raw HF hooks |
+| 3 | `ResponseGenerator` re-fronted on context | `sonde/generation/response_generator.py` | uses `StandardizedTransformer`, calls `InterventionContext` | `_make_steering_hook`, `_resolve_layer_modules`, raw HF hooks |
 | 4 | YAML `intervene` action + `PatchParams` | `runners/experiment_runner.py`, `core/configs/params/patch_params.py`, `core/configs/pipeline_config.py` | `_action_intervene` | `NotImplementedError` for intervention path |
 | 5 | Activation patching | `interventions/patching.py` | `add_patch(...)` | nothing |
 | 6 | Per-head steering (ITI) | `interventions/heads.py` | `add_head_steering(...)` | nothing |

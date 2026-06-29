@@ -65,7 +65,7 @@ class SampleBundle:
         if group_ids is not None and len(group_ids) != len(labels):
             raise ValueError("group_ids must match labels length.")
 
-        resolved_group_ids = self._resolve_group_ids(
+        resolved_group_ids = self.resolve_group_ids(
             group_ids, auto_group_by_id_when_none
         )
         return stratified_train_val_test_split(
@@ -77,12 +77,18 @@ class SampleBundle:
             group_ids=resolved_group_ids,
         )
 
-    def _resolve_group_ids(
+    def resolve_group_ids(
         self,
         group_ids: Sequence[str] | None,
         auto_group_by_id_when_none: bool,
     ) -> list[str] | None:
-        """Decide the grouping regime and log it (never silent)."""
+        """Decide the grouping regime and log it (never silent).
+
+        Public so callers that split outside ``train_val_test_split`` (e.g. the
+        YAML runner) reuse the exact same regime + leakage-warning logic.
+        """
+        from sonde.dataset.splitting import MIN_STRATIFIED_GROUPS
+
         if group_ids is not None:
             resolved = [str(group_id) for group_id in group_ids]
             logger.info(
@@ -97,7 +103,7 @@ class SampleBundle:
             return None
 
         n_unique = len(set(self.ids))
-        if n_unique >= 6:
+        if n_unique >= MIN_STRATIFIED_GROUPS:
             logger.info(
                 "Auto-grouping train/val/test by sample_id (%d unique groups) to "
                 "prevent prompt leakage across splits.",

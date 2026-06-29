@@ -5,6 +5,10 @@ from __future__ import annotations
 import random
 from collections.abc import Sequence
 
+# Minimum number of samples (and of groups, in group-aware mode) required for a
+# strict stratified train/val/test split. Shared so the threshold is defined once.
+MIN_STRATIFIED_GROUPS = 6
+
 
 def stratified_train_val_test_split(
     *,
@@ -37,9 +41,10 @@ def _stratified_train_val_test_split(
 ) -> tuple[list[int], list[int], list[int]]:
     """Build deterministic train/val/test splits with strict safety checks."""
     _validate_fraction_triplet(train_fraction, val_fraction, test_fraction)
-    if len(labels) < 6:
+    if len(labels) < MIN_STRATIFIED_GROUPS:
         raise ValueError(
-            "Need at least 6 samples for strict train/val/test stratification."
+            f"Need at least {MIN_STRATIFIED_GROUPS} samples for strict "
+            "train/val/test stratification."
         )
     label_values = [int(label) for label in labels]
     if any(label not in (0, 1) for label in label_values):
@@ -207,8 +212,11 @@ def _group_aware_split(
     for idx, group in enumerate(group_ids):
         grouped.setdefault(group, []).append(idx)
 
-    if len(grouped) < 6:
-        raise ValueError("Need at least 6 groups for strict group-aware splitting.")
+    if len(grouped) < MIN_STRATIFIED_GROUPS:
+        raise ValueError(
+            f"Need at least {MIN_STRATIFIED_GROUPS} groups for strict "
+            "group-aware splitting."
+        )
     pos_groups: list[str] = []
     neg_groups: list[str] = []
     for group, idxs in grouped.items():

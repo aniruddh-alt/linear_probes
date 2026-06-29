@@ -456,3 +456,13 @@ class TestDirectionalAblation:
         # Only dimension 0 (the v direction) changes; dims 1.. are untouched.
         assert torch.allclose(out[..., 1:], h[..., 1:])
         assert torch.allclose(out[..., 0], torch.zeros_like(out[..., 0]), atol=1e-6)
+
+    def test_non_unit_vector_is_normalized_internally(self):
+        # A non-unit v must still fully remove the projection (the function
+        # normalizes internally), not scale it by ||v||^2.
+        h = torch.randn(2, 5, 8)
+        v = torch.randn(8) * 7.3  # deliberately non-unit
+        vhat = v / v.norm()
+        out = directional_ablation(h, v, factor=1.0)
+        proj = (out * vhat).sum(dim=-1).abs().max().item()
+        assert proj < 1e-5

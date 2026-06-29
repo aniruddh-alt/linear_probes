@@ -116,6 +116,36 @@ class TestDiffMeansAction:
         # Separation lives in feature dim 0, so the direction must point there.
         assert int(art.direction.abs().argmax()) == 0
 
+    def test_diff_means_rejects_sequence_mode_extraction(self, tmp_path):
+        # diff_means needs pooled (N, D) features; a sequence-mode extraction
+        # (list of per-token tensors) must fail loudly, not IndexError.
+        seqs = [torch.randn(4, 8) for _ in range(12)]
+        result = {
+            "model": {},
+            "requested": ["layers_output:0"],
+            "activations": {"layers_output:0": seqs},
+            "sample_ids": [f"s{i}" for i in range(12)],
+            "labels": [1] * 6 + [0] * 6,
+        }
+        storage = save_extraction(result, tmp_path / "seq", overwrite=True)
+        cfg = DiffMeansConfig.from_dict(
+            {
+                "action": "diff_means",
+                "seed": 0,
+                "sweep": {
+                    "activation_targets": ["layers_output:0"],
+                    "enforce_control_sanity": False,
+                },
+                "io": {
+                    "input_path": storage["manifest_path"],
+                    "output_dir": str(tmp_path / "o"),
+                },
+                "output": {"output_dir": str(tmp_path / "o")},
+            }
+        )
+        with pytest.raises(ValueError, match="requires pooled"):
+            dispatch_action(cfg)
+
 
 class TestControlSanityGuard:
     def test_probe_sweep_control_sanity_raises_when_real_not_above_controls(self):
@@ -201,3 +231,19 @@ class TestExtractAction:
         assert manifest_path.endswith("_manifest.json")
         loaded = load_extraction_manifest(manifest_path)
         assert loaded["sample_ids"] == ["a", "b"]
+
+
+class TestMapLabel:
+    def test_strict_label_map_raises_on_unmapped(self):
+        from sonde.runners.experiment_runner import _map_label
+
+        label_map = {"entailment": 1, "contradiction": 0}
+        assert _map_label("entailment", label_map) == 1
+        with pytest.raises(KeyError, match="not in dataset"):
+            _map_label("neutral", label_map)
+
+    def test_empty_label_map_coerces_int(self):
+        from sonde.runners.experiment_runner import _map_label
+
+        assert _map_label("1", {}) == 1
+        assert _map_label(0, {}) == 0

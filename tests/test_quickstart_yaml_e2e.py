@@ -43,7 +43,7 @@ class TestQuickstartYamlE2E:
         assert result.summary["status"] == "completed"
         # Bundled data makes layer 1 the more separable layer; selection is
         # deterministic (seed propagated to the probe trainer).
-        assert result.summary["best_layer"].startswith("layers_output:")
+        assert result.summary["best_layer"] == "layers_output:1"
         assert "probe" in result.artifacts
         assert Path(result.artifacts["probe"]).exists()
 

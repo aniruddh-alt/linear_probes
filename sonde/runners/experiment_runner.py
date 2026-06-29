@@ -167,6 +167,25 @@ def _scalar(value: Any) -> float | None:
     return None
 
 
+def _map_label(raw_label: Any, label_map: dict[str, int]) -> int:
+    """Map a raw dataset label to a binary label.
+
+    When ``label_map`` is non-empty, an unmapped raw label is an error rather
+    than being silently coerced to ``int(raw_label)`` (which would mislabel
+    classes like 2/3 or string classes).
+    """
+    if label_map:
+        key = str(raw_label)
+        if key not in label_map:
+            raise KeyError(
+                f"Raw label {key!r} is not in dataset.label_map "
+                f"(keys: {sorted(label_map)}). Add it, or clear label_map to use "
+                "raw integer labels."
+            )
+        return int(label_map[key])
+    return int(raw_label)
+
+
 def _load_extraction_and_splits(
     io_params: Any, split_params: Any
 ) -> tuple[
@@ -184,6 +203,7 @@ def _load_extraction_and_splits(
     """
     from sonde.activation.storage import load_extraction_manifest
     from sonde.dataset.splitting import stratified_train_val_test_split
+    from sonde.dataset.types import SampleBundle
 
     input_path = io_params.input_path
     if not input_path:
@@ -207,8 +227,14 @@ def _load_extraction_and_splits(
         for sid in extraction.get("sample_ids", [str(i) for i in range(len(labels))])
     ]
 
+    # Reuse SampleBundle's grouping policy so the runner path gets the same
+    # regime logging + duplicate-id leakage warning (and the threshold lives in
+    # one place), instead of reimplementing it inline.
     auto_group = getattr(split_params, "auto_group_by_id_when_none", True)
-    group_ids = sample_ids if (auto_group and len(set(sample_ids)) >= 6) else None
+    bundle = SampleBundle(
+        prompts=list(sample_ids), labels=list(labels), ids=list(sample_ids)
+    )
+    group_ids = bundle.resolve_group_ids(None, auto_group)
     seed = split_params.split_seed if split_params.split_seed is not None else 0
     splits = stratified_train_val_test_split(
         labels=labels,
@@ -373,7 +399,7 @@ def _action_pipeline(cfg: PipelineConfig) -> RunResult:
     rows, labels = [], []
     for row in ds:  # type: ignore[union-attr]
         raw_label = row[cfg.dataset.label_key]  # type: ignore[index]
-        label = cfg.dataset.label_map.get(str(raw_label), int(raw_label))
+        label = _map_label(raw_label, cfg.dataset.label_map)
         text = row[cfg.dataset.text_key]  # type: ignore[index]
         row_id = row.get(cfg.dataset.id_key, str(len(rows)))  # type: ignore[union-attr]
         rows.append({"id": str(row_id), "text": text, "label": label})
@@ -481,14 +507,16 @@ def _action_pipeline(cfg: PipelineConfig) -> RunResult:
                 ood_ds = load_dataset(
                     cfg.dataset.path, ood_config, split=cfg.dataset.ood_split
                 )
-            except Exception as e:
+            except (ValueError, FileNotFoundError, OSError, KeyError) as e:
+                # Skip OOD configs that fail to load; let unexpected errors
+                # (bugs, OOM) propagate rather than be silently swallowed.
                 print(f"  {ood_config:<30} SKIPPED: {e}")
                 continue
 
             ood_rows, ood_labels = [], []
             for row in ood_ds:  # type: ignore[union-attr]
                 raw_label = row[cfg.dataset.label_key]  # type: ignore[index]
-                label = cfg.dataset.label_map.get(str(raw_label), int(raw_label))
+                label = _map_label(raw_label, cfg.dataset.label_map)
                 text = row[cfg.dataset.text_key]  # type: ignore[index]
                 row_id = row.get(cfg.dataset.id_key, str(len(ood_rows)))  # type: ignore[union-attr]
                 ood_rows.append({"id": str(row_id), "text": text, "label": label})

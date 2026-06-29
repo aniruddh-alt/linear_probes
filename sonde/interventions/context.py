@@ -32,10 +32,10 @@ Usage::
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from .steering import apply_pending_steers
-from .types import PendingSteer
+from .types import PendingSteer, SteeringMode
 from .vectors import load_vector
 
 if TYPE_CHECKING:
@@ -56,7 +56,7 @@ class InterventionContext:
         layers: int | list[int] | str,
         vector: Any,
         *,
-        mode: str = "additive",
+        mode: SteeringMode = "additive",
         factor: float = 1.0,
         normalize: bool = True,
         positions: int | list[int] | None = None,
@@ -117,9 +117,6 @@ class InterventionContext:
         """
         apply_pending_steers(self.model, self._steers)
 
-    # Backwards-compatible private alias.
-    _apply = apply
-
     # ── classmethod constructors ──────────────────────────────────────────
 
     @classmethod
@@ -144,8 +141,10 @@ class InterventionContext:
                 layers=block.layers,
                 vector=block.vector_path,
                 vector_key=block.vector_key,
-                mode=block.mode,
-                factor=_block_factor(block),
+                # block.mode is validated against the same set by SteeringParams.
+                mode=cast(SteeringMode, block.mode),
+                # SteeringParams.factor resolves strength + the mode-aware default.
+                factor=block.factor,
                 normalize=block.normalize,
             )
         return ctx
@@ -173,17 +172,6 @@ class InterventionContext:
         raise TypeError(
             f"layers must be int, list[int], or 'all'; got {type(layers).__name__}."
         )
-
-
-def _block_factor(block: Any) -> float:
-    """Resolve the strength field on a SteeringParams block.
-
-    Prefers ``factor`` (canonical) and falls back to ``strength`` (deprecated
-    alias) so older YAML keeps working.
-    """
-    if getattr(block, "factor", None) is not None:
-        return float(block.factor)
-    return float(getattr(block, "strength", 1.0) or 1.0)
 
 
 __all__ = ["InterventionContext"]

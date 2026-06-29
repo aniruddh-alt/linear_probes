@@ -26,20 +26,12 @@ import torch
 from safetensors import safe_open
 from safetensors.torch import save_file
 
-SCHEMA_VERSION = 1
+from sonde._pkg import sonde_version
+
+# Probe-artifact schema version, independent of the extraction-artifact schema
+# version in sonde.activation.storage.
+PROBE_ARTIFACT_SCHEMA_VERSION = 1
 _LAYER_RE = re.compile(r":(-?\d+)$")
-
-
-def _sonde_version() -> str:
-    try:
-        from importlib.metadata import PackageNotFoundError, version
-
-        try:
-            return version("sonde")
-        except PackageNotFoundError:
-            return "unknown"
-    except Exception:  # pragma: no cover - defensive
-        return "unknown"
 
 
 def layer_from_activation_key(activation_key: str) -> int | None:
@@ -84,8 +76,8 @@ class ProbeArtifact:
             tensors["bias"] = torch.tensor([float(self.bias)], dtype=torch.float32)
 
         info = {
-            "schema_version": SCHEMA_VERSION,
-            "sonde_version": _sonde_version(),
+            "schema_version": PROBE_ARTIFACT_SCHEMA_VERSION,
+            "sonde_version": sonde_version(),
             "activation_key": self.activation_key,
             "layer": self.layer,
             "bias": self.bias,

@@ -27,7 +27,16 @@ def _load_vector(
     """Load a steering vector from .pt or .safetensors file."""
     if path.endswith(".safetensors"):
         tensors = load_file(path, device=device)
-        vec = tensors[key] if key else next(iter(tensors.values()))
+        if key:
+            vec = tensors[key]
+        elif len(tensors) == 1:
+            vec = next(iter(tensors.values()))
+        else:
+            available = ", ".join(sorted(tensors))
+            raise ValueError(
+                f"Safetensors file '{path}' has multiple tensors ({available}); "
+                "set steering.vector_key to disambiguate."
+            )
     else:
         vec = torch.load(path, map_location=device, weights_only=True)
 
@@ -49,6 +58,8 @@ def _make_steering_hook(
             h = output
         elif isinstance(output, tuple):
             h = output[0]
+        elif isinstance(output, dict):
+            h = output[next(iter(output))]
         else:
             h = output[0]
         v = vector.to(dtype=h.dtype, device=h.device)
@@ -151,21 +162,23 @@ class ResponseGenerator:
 
         handles = []
         if self._steering_vector is not None and self.steering_params:
-            try:
-                layer_modules = _resolve_layer_modules(self.model)
-            except ValueError:
-                logger.warning("Could not resolve layer modules; skipping steering.")
-                layer_modules = []
+            # Steering is enabled; if we cannot apply it, fail loudly rather than
+            # silently generating unsteered output that looks like a real result.
+            layer_modules = _resolve_layer_modules(self.model)
 
             for layer_idx in self.steering_params.layers:
-                if layer_idx < len(layer_modules):
-                    hook_fn = _make_steering_hook(
-                        vector=self._steering_vector,
-                        mode=self.steering_params.mode,
-                        strength=self.steering_params.factor,
+                if not (0 <= layer_idx < len(layer_modules)):
+                    raise ValueError(
+                        f"Steering layer index {layer_idx} is out of range for a "
+                        f"model with {len(layer_modules)} layers."
                     )
-                    handle = layer_modules[layer_idx].register_forward_hook(hook_fn)
-                    handles.append(handle)
+                hook_fn = _make_steering_hook(
+                    vector=self._steering_vector,
+                    mode=self.steering_params.mode,
+                    strength=self.steering_params.factor,
+                )
+                handle = layer_modules[layer_idx].register_forward_hook(hook_fn)
+                handles.append(handle)
 
         try:
             for batch_start in range(0, len(prompts), gen_params.batch_size):

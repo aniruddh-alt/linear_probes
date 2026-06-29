@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import pytest
 import torch
 from safetensors.torch import save_file
 
@@ -197,3 +198,39 @@ class TestSteeringHooks:
 
         assert len(result) == 2
         assert result[1] == extra
+
+    def test_hook_multi_element_tuple_preserves_tail(self):
+        # HF blocks commonly return (hidden, present_key_value, ...).
+        vec = torch.tensor([1.0, 0.0, 0.0])
+        hook = _make_steering_hook(vec, mode="additive", strength=2.0)
+        h = torch.tensor([[[1.0, 2.0, 3.0]]])
+        kv = ("k", "v")
+        result = hook(None, None, (h, kv, "extra"))
+        assert result[1] == kv
+        assert result[2] == "extra"
+        assert torch.allclose(result[0][..., 0], torch.tensor([3.0]))  # 1 + 2*1
+
+    def test_hook_dict_output_steers_first_value(self):
+        vec = torch.tensor([1.0, 0.0])
+        hook = _make_steering_hook(vec, mode="additive", strength=5.0)
+        h = torch.tensor([[[1.0, 2.0]]])
+        out = {"hidden": h, "other": "keep"}
+        result = hook(None, None, out)
+        assert result["other"] == "keep"
+        assert torch.allclose(result["hidden"][..., 0], torch.tensor([6.0]))
+
+
+class TestLoadVectorAmbiguity:
+    def test_empty_key_multi_tensor_raises(self, tmp_path):
+        from safetensors.torch import save_file
+
+        from sonde.generation.response_generator import _load_vector
+
+        path = tmp_path / "v.safetensors"
+        save_file(
+            {"a": torch.tensor([1.0, 0.0]), "b": torch.tensor([0.0, 1.0])}, str(path)
+        )
+        with pytest.raises(ValueError, match="multiple tensors"):
+            _load_vector(str(path), key="")
+        # With an explicit key it loads fine.
+        assert _load_vector(str(path), key="b").shape == (2,)

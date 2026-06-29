@@ -31,10 +31,15 @@ def directional_ablation(
 ) -> torch.Tensor:
     """Return ``h - factor * (h . v̂) v̂`` along the last dim.
 
-    ``v`` is cast to ``h``'s dtype/device. With ``factor=1`` and a unit ``v`` the
-    component of ``h`` along ``v`` is removed (its projection becomes ~0).
+    ``v`` is cast to ``h``'s dtype/device and unit-normalised internally, so the
+    result is a true projection regardless of ``v``'s magnitude (callers that
+    pass an un-normalised vector still get correct ablation). With ``factor=1``
+    the component of ``h`` along ``v`` is removed (its projection becomes ~0).
     """
     v = v.to(dtype=h.dtype, device=h.device)
+    norm = torch.linalg.vector_norm(v)
+    if norm > 0:
+        v = v / norm
     dot = (h * v).sum(dim=-1, keepdim=True)
     return h - factor * dot * v
 
