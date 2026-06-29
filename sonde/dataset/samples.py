@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import json
+import logging
 from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 from typing import Any
@@ -11,6 +12,8 @@ from typing import Any
 from torch.utils.data import DataLoader, Dataset
 
 from sonde.dataset.types import SampleBundle
+
+logger = logging.getLogger(__name__)
 
 Record = dict[str, Any] | str
 Preprocessor = Callable[[str], str]
@@ -75,6 +78,7 @@ class ProbingSampleBuilder:
         prompts: list[str] = []
         labels: list[int | None] = []
         ids: list[str] = []
+        dropped_ids: list[str] = []
 
         for index, record in enumerate(self.records):
             text, label, sample_id = self._record_to_sample(
@@ -97,8 +101,22 @@ class ProbingSampleBuilder:
                 prompts.append(text)
                 labels.append(label)
                 ids.append(sample_id)
+            else:
+                dropped_ids.append(sample_id)
 
-        return SampleBundle(prompts=StringDataset(prompts), labels=labels, ids=ids)
+        if dropped_ids:
+            preview = ", ".join(dropped_ids[:10])
+            suffix = ", ..." if len(dropped_ids) > 10 else ""
+            logger.warning(
+                "Dropped %d/%d record(s) with empty text after preprocessing "
+                "(ids: %s%s).",
+                len(dropped_ids),
+                len(self.records),
+                preview,
+                suffix,
+            )
+
+        return SampleBundle(prompts=prompts, labels=labels, ids=ids)
 
     def to_dataloader(
         self,
@@ -108,7 +126,9 @@ class ProbingSampleBuilder:
         **sample_kwargs: Any,
     ) -> DataLoader:
         bundle = self.to_samples(**sample_kwargs)
-        return DataLoader(bundle.prompts, batch_size=batch_size, shuffle=shuffle)
+        return DataLoader(
+            StringDataset(bundle.prompts), batch_size=batch_size, shuffle=shuffle
+        )
 
     def _record_to_sample(
         self,

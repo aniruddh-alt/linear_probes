@@ -6,7 +6,6 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from sonde.dataset.samples import StringDataset
 from sonde.dataset.types import SampleBundle
 
 
@@ -83,7 +82,7 @@ class GenerationResult:
         else:
             texts = list(self.prompts)
         return SampleBundle(
-            prompts=StringDataset(texts),
+            prompts=texts,
             labels=list(self.labels),
             ids=list(self.sample_ids),
             responses=list(self.responses),

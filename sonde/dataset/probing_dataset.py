@@ -45,14 +45,15 @@ class ProbingDataset(
             and features[0].ndim == 2
         ):
             hidden_dim = features[0].shape[1]
-            is_variable_length = any(
-                f.shape[0] != features[0].shape[0] for f in features
-            )
             all_2d_same_hidden = all(
                 f.ndim == 2 and f.shape[1] == hidden_dim for f in features
             )
-            force_sequence = sequence_mode is True
-            if (is_variable_length or force_sequence) and all_2d_same_hidden:
+            # A list of 2-D (S, D) tensors is per-token sequence data. Default to
+            # sequence mode so equal-length sequences are NOT silently flattened
+            # to (N, S*D) — a correctness landmine that trains a probe on the
+            # wrong input dimensionality. Pass sequence_mode=False to explicitly
+            # opt into pooled flattening instead.
+            if all_2d_same_hidden and sequence_mode is not False:
                 self.sequence_mode = True
                 self._sequence_features = [f.detach().float() for f in features]
                 if len(self._sequence_features) != len(labels):
@@ -134,15 +135,20 @@ class ProbingDataset(
                 labels = [int(label) for label in extraction_labels]
 
         if labels is None:
+            if positive_indices is None:
+                raise ValueError(
+                    "Cannot build a binary ProbingDataset without labels. Pass "
+                    "`labels=`, pass `positive_indices=`, or include a `labels` "
+                    "field in the extraction. (Previously this silently labelled "
+                    "every sample 0.)"
+                )
             labels = [0] * num_features
-            if positive_indices is not None:
-                labels = list(labels)
-                for idx in positive_indices:
-                    if idx < 0 or idx >= num_features:
-                        raise IndexError(
-                            f"positive index {idx} out of range for {num_features} samples."
-                        )
-                    labels[idx] = 1
+            for idx in positive_indices:
+                if idx < 0 or idx >= num_features:
+                    raise IndexError(
+                        f"positive index {idx} out of range for {num_features} samples."
+                    )
+                labels[idx] = 1
 
         if isinstance(raw_features, list):
             return cls(features=raw_features, labels=labels)
