@@ -41,7 +41,7 @@ include = ["sonde*"]
 
 [tool.setuptools.package-data]
 "sonde" = ["py.typed"]
-"sonde.configs" = ["*.yaml", "recipes/*.yaml"]
+"sonde.configs" = ["*.yaml", "recipes/*.yaml", "recipes/data/*.safetensors", "recipes/data/*.json"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

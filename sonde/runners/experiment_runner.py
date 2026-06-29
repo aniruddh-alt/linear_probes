@@ -158,14 +158,197 @@ def _action_extract(cfg: ExtractConfig) -> RunResult:
     )
 
 
+def _scalar(value: Any) -> float | None:
+    """Coerce a metric (possibly a (point, ci) tuple) to a scalar float."""
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, (tuple, list)) and value:
+        return float(value[0])
+    return None
+
+
+def _load_extraction_and_splits(
+    io_params: Any, split_params: Any
+) -> tuple[
+    dict[str, Any],
+    list[int],
+    list[str],
+    list[str] | None,
+    tuple[list[int], list[int], list[int]],
+]:
+    """Load a pre-extracted artifact and build validated train/val/test splits.
+
+    Shared by the probe_sweep and diff_means actions: both read an extraction
+    manifest (``io.input_path``), require non-null labels, and split with the
+    same group-aware policy as :class:`SampleBundle`.
+    """
+    from sonde.activation.storage import load_extraction_manifest
+    from sonde.dataset.splitting import stratified_train_val_test_split
+
+    input_path = io_params.input_path
+    if not input_path:
+        raise ValueError(
+            "io.input_path is required (path to an extraction manifest) for this action."
+        )
+    manifest_file = Path(input_path)
+    if not manifest_file.exists():
+        raise FileNotFoundError(f"Extraction manifest not found: {manifest_file}")
+
+    extraction = load_extraction_manifest(manifest_file)
+    raw_labels = extraction.get("labels")
+    if not raw_labels or any(label is None for label in raw_labels):
+        raise ValueError(
+            "Extraction has missing/None labels; cannot run a probe sweep. "
+            "Re-extract with labels or provide a labelled artifact."
+        )
+    labels = [int(label) for label in raw_labels]
+    sample_ids = [
+        str(sid)
+        for sid in extraction.get("sample_ids", [str(i) for i in range(len(labels))])
+    ]
+
+    auto_group = getattr(split_params, "auto_group_by_id_when_none", True)
+    group_ids = sample_ids if (auto_group and len(set(sample_ids)) >= 6) else None
+    seed = split_params.split_seed if split_params.split_seed is not None else 0
+    splits = stratified_train_val_test_split(
+        labels=labels,
+        train_fraction=split_params.train_fraction,
+        val_fraction=split_params.val_fraction,
+        test_fraction=split_params.test_fraction,
+        seed=seed,
+        group_ids=group_ids,
+    )
+    return extraction, labels, sample_ids, group_ids, splits
+
+
 def _action_probe_sweep(cfg: ProbeConfig) -> RunResult:
-    """Run probe sweep on pre-extracted activations."""
-    raise NotImplementedError("probe_sweep action not yet wired via experiment runner")
+    """Train a probe per layer on a pre-extracted artifact, select best on val.
+
+    Saves the selected layer's concept direction as a probe artifact (the
+    contract consumed by the intervention layer) plus, optionally, an immutable
+    run manifest.
+    """
+    from sonde.probes import LayerProbeSweepRunner, save_probe_artifact
+
+    extraction, labels, _sample_ids, group_ids, (train, val, test) = (
+        _load_extraction_and_splits(cfg.io, cfg.split)
+    )
+    output_dir = Path(cfg.io.output_dir or cfg.output.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Make runs reproducible by default: fall back to the experiment seed.
+    if cfg.probe.seed is None:
+        cfg.probe.seed = cfg.seed
+
+    runner = LayerProbeSweepRunner(probe=cfg.probe, sweep=cfg.sweep)
+    result = runner.run(
+        extraction,
+        train_indices=list(train),
+        val_indices=list(val),
+        test_indices=list(test),
+        labels=labels,
+        group_ids=group_ids,
+        manifest_path=cfg.output.manifest_path,
+        manifest_overwrite=cfg.output.overwrite_manifest,
+        manifest_unique_path=cfg.output.unique_manifest_path,
+    )
+
+    artifacts: dict[str, str] = {}
+    if result.best_direction is not None:
+        probe_path = output_dir / f"{cfg.run_name or 'probe'}_probe.safetensors"
+        save_probe_artifact(
+            direction=result.best_direction,
+            activation_key=result.best_key,
+            path=probe_path,
+            bias=result.best_bias,
+            metadata={
+                "method": "linear_probe",
+                "probe_type": cfg.probe.probe_type,
+                "model": extraction.get("model"),
+                "selection_metric": cfg.sweep.selection_metric,
+                "dataset_fingerprint": result.dataset_fingerprint,
+            },
+        )
+        artifacts["probe"] = str(probe_path)
+    if result.manifest_path:
+        artifacts["run_manifest"] = result.manifest_path
+
+    return RunResult(
+        summary={
+            "run_name": cfg.run_name,
+            "action": cfg.action,
+            "best_layer": result.best_key,
+            "best_val_score": _scalar(result.best_score),
+            "test_auroc": _scalar(result.test_metrics.get("auroc")),
+            "split_sizes": list(result.split_sizes),
+            "status": "completed",
+        },
+        metrics={
+            "best_score": result.best_score,
+            "test_metrics": result.test_metrics,
+            "controls": result.controls,
+        },
+        artifacts=artifacts,
+    )
 
 
 def _action_diff_means(cfg: DiffMeansConfig) -> RunResult:
-    """Placeholder for diff-means action wiring."""
-    raise NotImplementedError("diff_means action not yet wired via experiment runner")
+    """Find a diff-of-means concept direction per layer; save the best as an artifact."""
+    from sonde.directions import DiffMeansSweepRunner
+    from sonde.probes import save_probe_artifact
+
+    extraction, labels, _sample_ids, group_ids, (train, val, test) = (
+        _load_extraction_and_splits(cfg.io, cfg.split)
+    )
+    output_dir = Path(cfg.io.output_dir or cfg.output.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    runner = DiffMeansSweepRunner(sweep=cfg.sweep)
+    result = runner.run(
+        extraction,
+        train_indices=list(train),
+        val_indices=list(val),
+        test_indices=list(test),
+        labels=labels,
+        group_ids=group_ids,
+        manifest_path=cfg.output.manifest_path,
+        manifest_overwrite=cfg.output.overwrite_manifest,
+        manifest_unique_path=cfg.output.unique_manifest_path,
+    )
+
+    probe_path = output_dir / f"{cfg.run_name or 'diff_means'}_direction.safetensors"
+    save_probe_artifact(
+        direction=result.best_direction,
+        activation_key=result.best_key,
+        path=probe_path,
+        metadata={
+            "method": "diff_means",
+            "model": extraction.get("model"),
+            "selection_metric": cfg.sweep.selection_metric,
+            "dataset_fingerprint": result.dataset_fingerprint,
+        },
+    )
+    artifacts = {"direction": str(probe_path)}
+    if result.manifest_path:
+        artifacts["run_manifest"] = result.manifest_path
+
+    return RunResult(
+        summary={
+            "run_name": cfg.run_name,
+            "action": cfg.action,
+            "best_layer": result.best_key,
+            "best_val_score": _scalar(result.best_score),
+            "test_auroc": _scalar(result.test_metrics.get("auroc")),
+            "split_sizes": list(result.split_sizes),
+            "status": "completed",
+        },
+        metrics={
+            "best_score": result.best_score,
+            "test_metrics": result.test_metrics,
+            "controls": result.controls,
+        },
+        artifacts=artifacts,
+    )
 
 
 def _action_pipeline(cfg: PipelineConfig) -> RunResult:

@@ -11,7 +11,12 @@ _VALID_MODES = frozenset({"project_subtract", "additive"})
 
 @dataclass
 class SteeringParams(BaseConfig):
-    """Configuration for activation steering during generation."""
+    """Configuration for activation steering during generation.
+
+    ``strength`` is the canonical YAML/config field; downstream callers that
+    speak nnterp's vocabulary read it via the ``factor`` property on this
+    dataclass so the steering API stays consistent across config and code.
+    """
 
     enabled: bool = False
     vector_path: str = ""
@@ -32,3 +37,8 @@ class SteeringParams(BaseConfig):
                 raise ValueError("vector_path is required when steering is enabled.")
             if not self.layers:
                 raise ValueError("layers is required when steering is enabled.")
+
+    @property
+    def factor(self) -> float:
+        """Alias for ``strength`` matching nnterp's ``steer(factor=...)`` API."""
+        return self.strength

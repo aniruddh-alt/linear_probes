@@ -17,6 +17,9 @@ from sonde.core.configs.params.sweep_params import SweepParams
 from sonde.core.configs.params.token_selector_params import TokenSelectorParams
 from sonde.core.configs.pipeline_config import PipelineConfig
 from sonde.core.configs.probe_config import ProbeConfig
+from sonde.core.configs.resolvers import register_resolvers
+
+register_resolvers()
 
 __all__ = [
     "BaseConfig",

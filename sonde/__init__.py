@@ -58,6 +58,11 @@ from sonde.directions import (
     DiffMeansSweepRunner,
     evaluate_projection,
 )
+from sonde.interventions import (
+    InterventionContext,
+    PendingSteer,
+    load_vector,
+)
 from sonde.probes import (
     BaseProbe,
     BinaryProbeTrainer,
@@ -65,9 +70,11 @@ from sonde.probes import (
     LayerProbeSweepRunner,
     LinearProbe,
     ProbeAnalyzer,
+    ProbeArtifact,
     TrainedLayerProbe,
     build_probe,
     run_probe_with_controls,
+    save_probe_artifact,
 )
 from sonde.runners import RunResult, load_run_config, run_experiment
 
@@ -95,14 +102,17 @@ __all__ = [
     "IOParams",
     "Index",
     "IndexList",
+    "InterventionContext",
     "LastNonPad",
     "LayerProbeSweepResult",
     "LayerProbeSweepRunner",
     "LinearProbe",
     "ModelParams",
     "OutputParams",
+    "PendingSteer",
     "PipelineConfig",
     "ProbeAnalyzer",
+    "ProbeArtifact",
     "ProbeConfig",
     "ProbeParams",
     # dataset
@@ -125,7 +135,9 @@ __all__ = [
     "build_probe",
     "evaluate_projection",
     "load_run_config",
+    "load_vector",
     "run_experiment",
     "run_probe_with_controls",
+    "save_probe_artifact",
     "stratified_train_val_test_split",
 ]

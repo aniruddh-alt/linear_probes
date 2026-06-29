@@ -1,0 +1,89 @@
+{
+  "schema_version": 2,
+  "sonde_version": "0.1.0",
+  "model": {
+    "name": "synthetic-quickstart",
+    "num_layers": 2,
+    "hidden_size": 16
+  },
+  "requested": [
+    "layers_output:0",
+    "layers_output:1"
+  ],
+  "sample_ids": [
+    "sample-0",
+    "sample-1",
+    "sample-2",
+    "sample-3",
+    "sample-4",
+    "sample-5",
+    "sample-6",
+    "sample-7",
+    "sample-8",
+    "sample-9",
+    "sample-10",
+    "sample-11",
+    "sample-12",
+    "sample-13",
+    "sample-14",
+    "sample-15",
+    "sample-16",
+    "sample-17",
+    "sample-18",
+    "sample-19",
+    "sample-20",
+    "sample-21",
+    "sample-22",
+    "sample-23",
+    "sample-24",
+    "sample-25",
+    "sample-26",
+    "sample-27",
+    "sample-28",
+    "sample-29"
+  ],
+  "labels": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "storage": {
+    "mode": "safetensors",
+    "safetensors_path": "quickstart_extraction.safetensors",
+    "keys": {
+      "layers_output:0": {
+        "ragged": false
+      },
+      "layers_output:1": {
+        "ragged": false
+      }
+    }
+  }
+}
