@@ -15,6 +15,8 @@ from sonde.core.configs.extract_config import ExtractConfig
 from sonde.core.configs.generate_config import GenerateConfig
 from sonde.core.configs.overrides import apply_dot_overrides
 from sonde.core.configs.params.extraction_params import ExtractionParams
+from sonde.core.configs.params.io_params import IOParams
+from sonde.core.configs.params.split_params import SplitParams
 from sonde.core.configs.pipeline_config import PipelineConfig
 from sonde.core.configs.probe_config import ProbeConfig
 
@@ -152,7 +154,7 @@ def _action_extract(cfg: ExtractConfig) -> RunResult:
     manifest_path = storage.get("manifest_path", cfg.extraction.save_path)
 
     return RunResult(
-        summary={"action": "extract", "num_samples": len(bundle.ids)},
+        summary={"action": cfg.action, "num_samples": len(bundle.ids)},
         artifacts={"extraction_path": str(manifest_path)},
         metrics={"num_layers": len(extraction["requested"])},
     )
@@ -187,7 +189,7 @@ def _map_label(raw_label: Any, label_map: dict[str, int]) -> int:
 
 
 def _load_extraction_and_splits(
-    io_params: Any, split_params: Any
+    io_params: IOParams, split_params: SplitParams
 ) -> tuple[
     dict[str, Any],
     list[int],
@@ -230,7 +232,7 @@ def _load_extraction_and_splits(
     # Reuse SampleBundle's grouping policy so the runner path gets the same
     # regime logging + duplicate-id leakage warning (and the threshold lives in
     # one place), instead of reimplementing it inline.
-    auto_group = getattr(split_params, "auto_group_by_id_when_none", True)
+    auto_group = split_params.auto_group_by_id_when_none
     bundle = SampleBundle(
         prompts=list(sample_ids), labels=list(labels), ids=list(sample_ids)
     )
@@ -465,7 +467,6 @@ def _action_pipeline(cfg: PipelineConfig) -> RunResult:
         auroc = _scalar(p.val_metrics.get("auroc")) or 0.0
         print(f"  {key}: val_auroc={auroc:.4f}")
 
-    # Save best probe
     best_probe = result.probes[result.best_key]
     probe_path = output_dir / "best_probe.pt"
     torch.save(best_probe.trainer.model.state_dict(), probe_path)
@@ -558,7 +559,7 @@ def _action_pipeline(cfg: PipelineConfig) -> RunResult:
     return RunResult(
         summary={
             "run_name": cfg.run_name,
-            "action": "pipeline",
+            "action": cfg.action,
             "model": cfg.model.model_name,
             "best_layer": result.best_key,
             "num_samples": len(rows),

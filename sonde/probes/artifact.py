@@ -96,13 +96,24 @@ class ProbeArtifact:
             direction = handle.get_tensor("direction")
             keys = set(handle.keys())
             bias_tensor = handle.get_tensor("bias") if "bias" in keys else None
-        info = json.loads(metadata.get("info", "{}"))
+        info_raw = metadata.get("info")
+        if info_raw is None:
+            raise ValueError(
+                f"Probe artifact at {out} has no 'info' metadata block; "
+                "not a sonde probe artifact."
+            )
+        info = json.loads(info_raw)
+        activation_key = info.get("activation_key")
+        if not activation_key:
+            raise ValueError(
+                f"Probe artifact at {out} is missing its 'activation_key' contract."
+            )
         bias = (
             float(bias_tensor.item()) if bias_tensor is not None else info.get("bias")
         )
         return cls(
             direction=direction,
-            activation_key=info.get("activation_key", ""),
+            activation_key=activation_key,
             bias=bias,
             layer=info.get("layer"),
             metadata=info.get("metadata", {}),

@@ -224,21 +224,3 @@ class ProbingDataset(
         raise TypeError(
             f"Unsupported activation value format for key '{activation_key}'."
         )
-
-    @classmethod
-    def _resolve_activation_tensor(
-        cls, extraction: Mapping[str, Any], *, activation_key: str
-    ) -> torch.Tensor:
-        """Legacy method - always returns flattened tensor."""
-        raw_features = load_activation_value(
-            extraction,
-            activation_key=activation_key,
-            map_location="cpu",
-        )
-        if isinstance(raw_features, torch.Tensor):
-            return cls._as_feature_matrix(raw_features)
-        if isinstance(raw_features, Sequence):
-            return cls._as_feature_matrix(raw_features)
-        raise TypeError(
-            f"Unsupported activation value format for key '{activation_key}'."
-        )
