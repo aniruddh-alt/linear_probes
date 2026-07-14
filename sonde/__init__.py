@@ -79,17 +79,13 @@ from sonde.probes import (
 from sonde.runners import RunResult, load_run_config, run_experiment
 
 __all__ = [
-    # activation
     "ActivationExtractor",
     "AllTokens",
-    # configs
     "BaseConfig",
-    # probes
     "BaseProbe",
     "BinaryProbeTrainer",
     "DatasetParams",
     "DiffMeansConfig",
-    # directions
     "DiffMeansEstimator",
     "DiffMeansLayerResult",
     "DiffMeansSweepResult",
@@ -115,11 +111,9 @@ __all__ = [
     "ProbeArtifact",
     "ProbeConfig",
     "ProbeParams",
-    # dataset
     "ProbingDataset",
     "ProbingSampleBuilder",
     "Range",
-    # runners
     "RunResult",
     "SampleBundle",
     "SplitParams",

@@ -394,7 +394,6 @@ def _action_pipeline(cfg: PipelineConfig) -> RunResult:
     output_dir = Path(cfg.io.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # --- Load dataset ---
     ds = load_dataset(cfg.dataset.path, cfg.dataset.config, split=cfg.dataset.split)
     rows, labels = [], []
     for row in ds:  # type: ignore[union-attr]
@@ -434,7 +433,6 @@ def _action_pipeline(cfg: PipelineConfig) -> RunResult:
         group_ids=bundle.ids,
     )
 
-    # --- Extract activations ---
     targets = cfg.sweep.activation_targets or [f"layers_output:{i}" for i in cfg.layers]
     cfg.extraction.activations = targets
     cfg.extraction.save_path = cfg.extraction.save_path or str(
@@ -445,7 +443,6 @@ def _action_pipeline(cfg: PipelineConfig) -> RunResult:
     print(f"Extracting activations ({len(targets)} layers, {len(rows)} samples)...")
     extraction = extractor.extract(bundle)
 
-    # --- Probe sweep ---
     sweep_params = cfg.sweep
     if not sweep_params.activation_targets:
         sweep_params.activation_targets = targets
@@ -460,15 +457,12 @@ def _action_pipeline(cfg: PipelineConfig) -> RunResult:
         group_ids=bundle.ids,
     )
 
-    # --- Print results ---
     print(f"\nBest layer: {result.best_key} (val_auroc={result.best_score:.4f})")
     print(f"Test metrics: {result.test_metrics}")
     print(f"Controls: {result.controls}")
 
     for key, p in result.probes.items():
-        auroc = p.val_metrics.get("auroc", 0)
-        if isinstance(auroc, tuple):
-            auroc = auroc[0]
+        auroc = _scalar(p.val_metrics.get("auroc")) or 0.0
         print(f"  {key}: val_auroc={auroc:.4f}")
 
     # Save best probe
@@ -476,7 +470,6 @@ def _action_pipeline(cfg: PipelineConfig) -> RunResult:
     probe_path = output_dir / "best_probe.pt"
     torch.save(best_probe.trainer.model.state_dict(), probe_path)
 
-    # --- OOD evaluation ---
     ood_metrics: dict[str, Any] = {}
     if cfg.dataset.ood_configs:
         print(f"\n{'=' * 60}\nOOD EVALUATION\n{'=' * 60}")
@@ -556,15 +549,9 @@ def _action_pipeline(cfg: PipelineConfig) -> RunResult:
             evaluator = BinaryProbeTrainer(model=probe_model, config=cfg.probe)
             metrics = evaluator.evaluate(loader)
 
-            auroc = metrics.get("auroc", 0)
-            acc = metrics.get("accuracy", 0)
-            f1 = metrics.get("f1", 0)
-            if isinstance(auroc, tuple):
-                auroc = auroc[0]
-            if isinstance(acc, tuple):
-                acc = acc[0]
-            if isinstance(f1, tuple):
-                f1 = f1[0]
+            auroc = _scalar(metrics.get("auroc")) or 0.0
+            acc = _scalar(metrics.get("accuracy")) or 0.0
+            f1 = _scalar(metrics.get("f1")) or 0.0
             print(f"  {ood_config:<30} {auroc:>8.4f} {acc:>8.4f} {f1:>8.4f}")
             ood_metrics[ood_config] = {"auroc": auroc, "accuracy": acc, "f1": f1}
 

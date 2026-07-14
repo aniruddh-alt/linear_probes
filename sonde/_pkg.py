@@ -5,14 +5,11 @@ from __future__ import annotations
 
 def sonde_version() -> str:
     """Return the installed sonde version, or ``"unknown"`` if undeterminable."""
-    try:
-        from importlib.metadata import PackageNotFoundError, version
+    from importlib.metadata import PackageNotFoundError, version
 
-        try:
-            return version("sonde")
-        except PackageNotFoundError:
-            return "unknown"
-    except Exception:  # pragma: no cover - defensive
+    try:
+        return version("sonde")
+    except PackageNotFoundError:
         return "unknown"
 
 

@@ -8,6 +8,7 @@ from dataclasses import fields
 from typing import Any, cast
 
 import torch
+from nnterp import StandardizedTransformer
 from torch.utils.data import DataLoader, Dataset
 
 from sonde.activation.storage import save_extraction
@@ -15,13 +16,6 @@ from sonde.activation.token_selectors import AllTokens, TokenSelector
 from sonde.activation.types import ExtractionResult, LayerSpec, ModelMetadata
 from sonde.core.configs import ExtractionParams, ModelParams
 from sonde.dataset.samples import SampleBundle
-
-try:
-    from nnterp import StandardizedTransformer
-except ModuleNotFoundError:  # pragma: no cover - nnterp is a required dependency.
-    # nnterp is declared in [project].dependencies, so a correct install always
-    # has it. This guard only yields a friendlier error if it is somehow absent.
-    StandardizedTransformer = None  # type: ignore[assignment]
 
 
 class SequenceDataset(Dataset[str]):
@@ -68,12 +62,6 @@ class ActivationExtractor:
         *,
         token_selector: TokenSelector | None = None,
     ):
-        transformer_cls = StandardizedTransformer
-        if transformer_cls is None:
-            raise ModuleNotFoundError(
-                "ActivationExtractor requires 'nnterp' (a core dependency of sonde). "
-                "Reinstall the package, e.g. `pip install -e .`."
-            )
         self.model_params = model or ModelParams()
         self.extraction_params = extraction or ExtractionParams()
         self._runtime_token_selector = token_selector
@@ -96,7 +84,7 @@ class ActivationExtractor:
                 "float32": torch.float32,
             }
             model_kwargs["torch_dtype"] = dtype_map.get(dtype_str, dtype_str)
-        self.model = transformer_cls(mc.model_name, **model_kwargs)
+        self.model = StandardizedTransformer(mc.model_name, **model_kwargs)
         self.batch_size = self.extraction_params.batch_size
         self.default_activations = (
             list(self.extraction_params.activations)
@@ -554,7 +542,6 @@ class ActivationExtractor:
         kind: str,
         allow_2d: bool = False,
     ):
-        # Hidden State: [batch, seq, hidden].
         if token_index is None:
             return activation
         if not hasattr(activation, "ndim"):
@@ -569,7 +556,7 @@ class ActivationExtractor:
                 f"{tuple(activation.shape)} with no unambiguous sequence axis. "
                 "Set token_index=None or choose an activation with a known token axis."
             )
-        if allow_2d and hasattr(activation, "ndim") and activation.ndim == 2:
+        if allow_2d and activation.ndim == 2:
             return activation[:, token_index]
         return activation
 

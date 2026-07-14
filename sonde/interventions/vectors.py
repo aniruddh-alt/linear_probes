@@ -59,11 +59,9 @@ def load_vector(
 
 
 def _resolve_raw(source: Any, *, key: str, device: str | torch.device) -> torch.Tensor:
-    # 1) raw tensor
     if isinstance(source, torch.Tensor):
         return source
 
-    # 2) string / Path → file load
     if isinstance(source, (str, Path)):
         path = Path(source)
         if path.suffix == ".safetensors":
@@ -100,7 +98,6 @@ def _resolve_raw(source: Any, *, key: str, device: str | torch.device) -> torch.
             "Use .safetensors, .pt, or .pth."
         )
 
-    # 3) duck-typed objects exposing a usable attribute
     direction = getattr(source, "direction", None)
     if isinstance(direction, torch.Tensor):
         return direction

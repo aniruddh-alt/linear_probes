@@ -60,8 +60,6 @@ def _make_steering_hook(
             h = output[0]
         elif isinstance(output, dict):
             h = output[next(iter(output))]
-        else:
-            h = output[0]
         v = vector.to(dtype=h.dtype, device=h.device)
         if mode == "project_subtract":
             # Ablation fraction: strength=1.0 fully removes the component along v
