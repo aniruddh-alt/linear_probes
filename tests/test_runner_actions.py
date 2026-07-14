@@ -90,6 +90,50 @@ class TestProbeSweepAction:
         r1 = dispatch_action(cfgs[1])
         assert r0.summary["best_layer"] == r1.summary["best_layer"]
 
+    def test_probe_sweep_rejects_none_labels(self, tmp_path):
+        # Wired fail-loud guard: an extraction with any None label must raise
+        # rather than silently mislabelling every sample as 0.
+        n, d = 8, 4
+        result = {
+            "model": {"name": "synthetic", "num_layers": 1, "hidden_size": d},
+            "requested": ["layers_output:0"],
+            "activations": {"layers_output:0": torch.randn(n, d)},
+            "sample_ids": [f"s-{i}" for i in range(n)],
+            "labels": [1, 0, 1, 0, None, 1, 0, 1],
+        }
+        storage = save_extraction(result, tmp_path / "ext", overwrite=True)
+        cfg = ProbeConfig.from_dict(
+            {
+                "action": "probe_sweep",
+                "seed": 0,
+                "sweep": {"activation_targets": ["layers_output:0"]},
+                "io": {
+                    "input_path": storage["manifest_path"],
+                    "output_dir": str(tmp_path / "o"),
+                },
+                "output": {"output_dir": str(tmp_path / "o")},
+            }
+        )
+        with pytest.raises(ValueError, match="missing/None labels"):
+            dispatch_action(cfg)
+
+    def test_probe_sweep_rejects_pca_export(self, tmp_path):
+        # pca_components puts the direction in PCA space, so exporting it as an
+        # intervention artifact would be silently wrong: fail fast instead.
+        manifest = _write_synthetic_extraction(tmp_path)
+        cfg = ProbeConfig.from_dict(
+            {
+                "action": "probe_sweep",
+                "seed": 0,
+                "probe": {"pca_components": 3},
+                "sweep": {"activation_targets": ["layers_output:0"]},
+                "io": {"input_path": manifest, "output_dir": str(tmp_path / "o")},
+                "output": {"output_dir": str(tmp_path / "o")},
+            }
+        )
+        with pytest.raises(NotImplementedError, match="pca_components"):
+            dispatch_action(cfg)
+
 
 class TestDiffMeansAction:
     def test_diff_means_produces_direction_artifact(self, tmp_path):

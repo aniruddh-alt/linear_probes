@@ -188,6 +188,23 @@ def _map_label(raw_label: Any, label_map: dict[str, int]) -> int:
     return int(raw_label)
 
 
+def _reject_pca_export(pca_components: int | None) -> None:
+    """Refuse actions that export or OOD-evaluate a probe direction under PCA.
+
+    The sweep captures the direction in PCA space, so it neither matches the
+    D-dim activation key it would be saved under (breaking intervention) nor the
+    raw OOD features (breaking evaluation). Fail loud instead of emitting a
+    silently-wrong artifact.
+    """
+    if pca_components is not None:
+        raise NotImplementedError(
+            "pca_components is unsupported for this action: the probe direction "
+            "lives in PCA space and cannot be exported as an intervention artifact "
+            "or evaluated against raw OOD activations. Run without PCA, or use "
+            "LayerProbeSweepRunner directly for PCA-space probing metrics."
+        )
+
+
 def _load_extraction_and_splits(
     io_params: IOParams, split_params: SplitParams
 ) -> tuple[
@@ -258,6 +275,7 @@ def _action_probe_sweep(cfg: ProbeConfig) -> RunResult:
     """
     from sonde.probes import LayerProbeSweepRunner, save_probe_artifact
 
+    _reject_pca_export(cfg.probe.pca_components)
     extraction, labels, _sample_ids, group_ids, (train, val, test) = (
         _load_extraction_and_splits(cfg.io, cfg.split)
     )
@@ -393,6 +411,7 @@ def _action_pipeline(cfg: PipelineConfig) -> RunResult:
     from sonde.probes.architectures import build_probe
     from sonde.probes.linear import BinaryProbeTrainer
 
+    _reject_pca_export(cfg.probe.pca_components)
     output_dir = Path(cfg.io.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
