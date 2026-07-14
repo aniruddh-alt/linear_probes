@@ -158,7 +158,7 @@ class ActivationExtractor:
                             allow_2d=spec.kind == "input_ids",
                         )
                     if resolved_to_cpu:
-                        activation = activation.cpu()
+                        activation = activation.cpu()  # pyright: ignore[reportAttributeAccessIssue]
                     saved[name] = activation.save()  # pyright: ignore[reportAttributeAccessIssue]
                 if needs_input_ids:
                     ids_proxy = self.model.input_ids
