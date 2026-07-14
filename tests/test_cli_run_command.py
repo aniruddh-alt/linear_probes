@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from cli.main import _parse_overrides, build_parser, main
+from sonde.cli.main import _parse_overrides, build_parser, main
 
 
 class TestCli:
@@ -28,15 +28,25 @@ class TestCli:
         assert result == {"good": "value"}
 
     def test_main_runs_config(self, tmp_path):
+        # probe_sweep is wired; a config without an extraction fails loudly,
+        # which proves main() dispatched into the action.
         config_path = tmp_path / "run.yaml"
         config_path.write_text(
             "run_name: cli_test\naction: probe_sweep\n",
             encoding="utf-8",
         )
-        with pytest.raises(
-            NotImplementedError, match="probe_sweep action not yet wired"
-        ):
+        with pytest.raises(ValueError, match="input_path is required"):
             main([str(config_path)])
+
+    def test_main_run_subcommand_form(self, tmp_path):
+        # `sonde run -c cfg.yaml` form resolves to the same dispatch.
+        config_path = tmp_path / "run.yaml"
+        config_path.write_text(
+            "run_name: cli_test\naction: probe_sweep\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(ValueError, match="input_path is required"):
+            main(["run", "-c", str(config_path)])
 
     def test_main_no_args_exits(self):
         with pytest.raises(SystemExit):

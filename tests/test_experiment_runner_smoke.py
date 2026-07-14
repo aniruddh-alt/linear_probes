@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-from core.configs.extract_config import ExtractConfig
-from core.configs.generate_config import GenerateConfig
-from core.configs.probe_config import ProbeConfig
-from runners.experiment_runner import load_run_config, run_experiment
+from sonde.core.configs.extract_config import ExtractConfig
+from sonde.core.configs.generate_config import GenerateConfig
+from sonde.core.configs.probe_config import ProbeConfig
+from sonde.runners.experiment_runner import load_run_config, run_experiment
 
 
 class TestExperimentRunner:
@@ -52,15 +52,14 @@ class TestExperimentRunner:
         assert isinstance(cfg, ProbeConfig)
         assert cfg.probe.learning_rate == 0.001
 
-    def test_run_experiment_probe_sweep_raises_not_implemented(self, tmp_path):
+    def test_run_experiment_probe_sweep_requires_input_path(self, tmp_path):
+        # probe_sweep is now wired; without an extraction it must fail loudly.
         config_path = tmp_path / "run.yaml"
         config_path.write_text(
             "run_name: smoke\naction: probe_sweep\n",
             encoding="utf-8",
         )
-        with pytest.raises(
-            NotImplementedError, match="probe_sweep action not yet wired"
-        ):
+        with pytest.raises(ValueError, match="input_path is required"):
             run_experiment(config_path=config_path, overrides={})
 
     def test_run_experiment_unknown_action_raises(self, tmp_path):
@@ -82,9 +81,9 @@ class TestExperimentRunner:
             "run_name: aliased\naction: probe_sweep\n",
             encoding="utf-8",
         )
-        with pytest.raises(
-            NotImplementedError, match="probe_sweep action not yet wired"
-        ):
+        # Alias resolves to the probe_sweep config, which then fails for the
+        # expected reason (no extraction provided) — proving both work.
+        with pytest.raises(ValueError, match="input_path is required"):
             run_experiment(config_path="quick", aliases_path=aliases_file)
 
     def test_generate_action_requires_input_path(self, tmp_path):

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.configs.params.io_params import IOParams
+from sonde.core.configs.params.io_params import IOParams
 
 
 class TestIOParams:

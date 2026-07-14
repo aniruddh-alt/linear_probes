@@ -8,13 +8,13 @@ from pathlib import Path
 import torch
 from transformers import AutoTokenizer
 
-from activation import ActivationExtractor
-from core.configs import ExtractionParams, ModelParams, SweepParams
-from core.configs.params.generation_params import GenerationParams
-from core.configs.params.steering_params import SteeringParams
-from dataset import ProbingSampleBuilder
-from directions import DiffMeansSweepRunner
-from generation.response_generator import ResponseGenerator
+from sonde.activation import ActivationExtractor
+from sonde.core.configs import ExtractionParams, ModelParams, SweepParams
+from sonde.core.configs.params.generation_params import GenerationParams
+from sonde.core.configs.params.steering_params import SteeringParams
+from sonde.dataset import ProbingSampleBuilder
+from sonde.directions import DiffMeansSweepRunner
+from sonde.generation.response_generator import ResponseGenerator
 
 DATA_DIR = Path("experiments/refusal_probing/data")
 MODEL_NAME = "meta-llama/Llama-3.1-8B-Instruct"

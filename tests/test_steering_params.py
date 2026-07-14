@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from core.configs.params.steering_params import SteeringParams
+from sonde.core.configs.params.steering_params import SteeringParams
 
 
 class TestSteeringParams:
@@ -14,9 +14,19 @@ class TestSteeringParams:
         assert params.vector_path == ""
         assert params.vector_key == ""
         assert params.layers == []
-        assert params.strength == 10.0
+        # Mode-aware default: project_subtract is an ablation fraction (1.0 =
+        # full); additive is a strength (10.0).
         assert params.mode == "project_subtract"
+        assert params.strength == 1.0
+        assert params.factor == 1.0
         assert params.normalize is True
+
+    def test_additive_default_strength(self):
+        params = SteeringParams(mode="additive")
+        assert params.strength == 10.0
+
+    def test_explicit_strength_respected(self):
+        assert SteeringParams(mode="project_subtract", strength=0.5).strength == 0.5
 
     def test_valid_modes(self):
         for mode in ("project_subtract", "additive"):

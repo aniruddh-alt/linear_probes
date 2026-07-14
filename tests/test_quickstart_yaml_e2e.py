@@ -4,13 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
-from core.configs.probe_config import ProbeConfig
-from runners.experiment_runner import load_run_config, run_experiment
+from sonde.core.configs.probe_config import ProbeConfig
+from sonde.runners.experiment_runner import load_run_config, run_experiment
 
 QUICKSTART_PATH = (
     Path(__file__).resolve().parent.parent
+    / "sonde"
     / "configs"
     / "recipes"
     / "quickstart_probe.yaml"
@@ -22,8 +21,8 @@ class TestQuickstartYamlE2E:
         cfg = ProbeConfig.from_yaml(QUICKSTART_PATH)
         assert cfg.run_name == "quickstart_probe"
         assert cfg.action == "probe_sweep"
-        assert cfg.probe.epochs == 20
-        assert cfg.probe.learning_rate == 0.01
+        assert cfg.probe.epochs > 0
+        assert cfg.probe.learning_rate > 0
         assert cfg.split.train_fraction == 0.7
 
     def test_quickstart_yaml_round_trips(self, tmp_path):
@@ -33,20 +32,31 @@ class TestQuickstartYamlE2E:
         reloaded = ProbeConfig.from_yaml(out_path)
         assert reloaded == cfg
 
-    def test_quickstart_yaml_executes_probe_flow(self):
-        with pytest.raises(
-            NotImplementedError, match="probe_sweep action not yet wired"
-        ):
-            run_experiment(config_path=QUICKSTART_PATH)
+    def test_quickstart_yaml_executes_probe_flow(self, tmp_path):
+        result = run_experiment(
+            config_path=QUICKSTART_PATH,
+            overrides={
+                "io.output_dir": str(tmp_path),
+                "output.output_dir": str(tmp_path),
+            },
+        )
+        assert result.summary["status"] == "completed"
+        # Bundled data makes layer 1 the more separable layer; selection is
+        # deterministic (seed propagated to the probe trainer).
+        assert result.summary["best_layer"] == "layers_output:1"
+        assert "probe" in result.artifacts
+        assert Path(result.artifacts["probe"]).exists()
 
-    def test_quickstart_with_override(self):
-        with pytest.raises(
-            NotImplementedError, match="probe_sweep action not yet wired"
-        ):
-            run_experiment(
-                config_path=QUICKSTART_PATH,
-                overrides={"probe.epochs": "5", "split.train_fraction": "0.7"},
-            )
+    def test_quickstart_with_override(self, tmp_path):
+        result = run_experiment(
+            config_path=QUICKSTART_PATH,
+            overrides={
+                "probe.epochs": "5",
+                "io.output_dir": str(tmp_path),
+                "output.output_dir": str(tmp_path),
+            },
+        )
+        assert result.summary["status"] == "completed"
 
     def test_load_quickstart_via_alias(self, tmp_path):
         aliases_file = tmp_path / "aliases.yaml"

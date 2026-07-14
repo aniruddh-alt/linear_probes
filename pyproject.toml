@@ -4,27 +4,50 @@ version = "0.1.0"
 description = "A slender probe for the hidden layers of large models — a mech interp toolkit for activation extraction and linear probing."
 readme = "README.md"
 requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [{ name = "The sonde authors" }]
+keywords = ["interpretability", "linear-probes", "activations", "steering", "transformers"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
     "datasets>=3.0.0",
     "nnterp>=1.2.2",
+    "transformers>=4.40.0",
     "safetensors",
     "einops",
     "torch",
     "typing_extensions",
     "torchmetrics",
-    "matplotlib>=3.10.8",
     "omegaconf>=2.3.0",
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
+viz = [
+    "matplotlib>=3.10.8",
+]
 dev = [
     "pytest",
     "pyright",
     "ruff",
+    "matplotlib>=3.10.8",
 ]
 
+[project.urls]
+Homepage = "https://github.com/aniruddh-alt/sonde"
+Repository = "https://github.com/aniruddh-alt/sonde"
+Changelog = "https://github.com/aniruddh-alt/sonde/blob/main/CHANGELOG.md"
+
 [project.scripts]
-sonde = "cli.main:entrypoint"
+sonde = "sonde.cli.main:entrypoint"
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]
@@ -32,7 +55,11 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["activation*", "cli*", "configs*", "core*", "dataset*", "probes*", "runners*"]
+include = ["sonde*"]
+
+[tool.setuptools.package-data]
+"sonde" = ["py.typed"]
+"sonde.configs" = ["*.yaml", "recipes/*.yaml", "recipes/data/*.safetensors", "recipes/data/*.json"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
@@ -61,7 +88,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["activation", "cli", "core", "dataset", "directions", "generation", "probes", "runners"]
+known-first-party = ["sonde"]
 
 [tool.pyright]
 venvPath = "."

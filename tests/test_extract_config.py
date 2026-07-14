@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.configs.extract_config import ExtractConfig
+from sonde.core.configs.extract_config import ExtractConfig
 
 
 class TestExtractConfig:

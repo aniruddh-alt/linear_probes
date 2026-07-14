@@ -5,7 +5,7 @@
 **Anchors:**
 - Primer doc — `docs/linear-probes-primer.md` — the conceptual reference for what probes *should* do.
 - Reference paper — Kramár & Engels et al., *Building Production-Ready Probes For Gemini* (arXiv 2601.11516, Jan 2026).
-- Comparison codebase — `oumi-ai/oumi` at `/Users/aniruddhanramesh/dev/oumi/projects/oumi`.
+- Comparison codebase — `oumi-ai/oumi` at `the local oumi checkout`.
 
 ---
 
@@ -894,7 +894,7 @@ def from_contrast_pairs(cls, pairs: list[tuple[str, str]]) -> SampleBundle: ...
 
 ## 8. Comparison to `oumi-ai/oumi`
 
-`oumi` lives locally at `/Users/aniruddhanramesh/dev/oumi/projects/oumi`. The patterns to converge on:
+`oumi` lives locally at `the local oumi checkout`. The patterns to converge on:
 
 | Concern | sonde today | oumi today | Recommendation |
 |---|---|---|---|

@@ -4,7 +4,7 @@ import unittest
 
 import torch
 
-from directions.types import DiffMeansLayerResult, DiffMeansSweepResult
+from sonde.directions.types import DiffMeansLayerResult, DiffMeansSweepResult
 
 
 class DiffMeansTypesTests(unittest.TestCase):

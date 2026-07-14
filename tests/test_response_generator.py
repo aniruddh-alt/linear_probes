@@ -4,21 +4,22 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import pytest
 import torch
 from safetensors.torch import save_file
 
-from core.configs.params.generation_params import GenerationParams
-from core.configs.params.model_params import ModelParams
-from core.configs.params.steering_params import SteeringParams
-from dataset.samples import StringDataset
-from dataset.types import SampleBundle
-from generation.response_generator import ResponseGenerator, _make_steering_hook
-from generation.types import GenerationResult
+from sonde.core.configs.params.generation_params import GenerationParams
+from sonde.core.configs.params.model_params import ModelParams
+from sonde.core.configs.params.steering_params import SteeringParams
+from sonde.dataset.samples import StringDataset
+from sonde.dataset.types import SampleBundle
+from sonde.generation.response_generator import ResponseGenerator, _make_steering_hook
+from sonde.generation.types import GenerationResult
 
 
 class TestResponseGenerator:
-    @patch("generation.response_generator.AutoModelForCausalLM")
-    @patch("generation.response_generator.AutoTokenizer")
+    @patch("sonde.generation.response_generator.AutoModelForCausalLM")
+    @patch("sonde.generation.response_generator.AutoTokenizer")
     def test_generate_from_strings(self, mock_tok_cls, mock_model_cls):
         mock_tok = MagicMock()
         mock_tok.pad_token_id = 0
@@ -46,8 +47,8 @@ class TestResponseGenerator:
         assert len(result.responses) == 2
         assert result.labels == [None, None]
 
-    @patch("generation.response_generator.AutoModelForCausalLM")
-    @patch("generation.response_generator.AutoTokenizer")
+    @patch("sonde.generation.response_generator.AutoModelForCausalLM")
+    @patch("sonde.generation.response_generator.AutoTokenizer")
     def test_generate_from_sample_bundle(self, mock_tok_cls, mock_model_cls):
         mock_tok = MagicMock()
         mock_tok.pad_token_id = 0
@@ -82,8 +83,8 @@ class TestResponseGenerator:
 
 
 class TestSteeringVectorLoading:
-    @patch("generation.response_generator.AutoModelForCausalLM")
-    @patch("generation.response_generator.AutoTokenizer")
+    @patch("sonde.generation.response_generator.AutoModelForCausalLM")
+    @patch("sonde.generation.response_generator.AutoTokenizer")
     def test_load_pt_vector(self, mock_tok_cls, mock_model_cls, tmp_path):
         mock_tok = MagicMock()
         mock_tok.pad_token_id = 0
@@ -108,8 +109,8 @@ class TestSteeringVectorLoading:
         assert gen._steering_vector.shape == (64,)
         assert torch.allclose(gen._steering_vector.norm(), torch.tensor(1.0), atol=1e-5)
 
-    @patch("generation.response_generator.AutoModelForCausalLM")
-    @patch("generation.response_generator.AutoTokenizer")
+    @patch("sonde.generation.response_generator.AutoModelForCausalLM")
+    @patch("sonde.generation.response_generator.AutoTokenizer")
     def test_load_safetensors_vector(self, mock_tok_cls, mock_model_cls, tmp_path):
         mock_tok = MagicMock()
         mock_tok.pad_token_id = 0
@@ -134,8 +135,8 @@ class TestSteeringVectorLoading:
         assert gen._steering_vector is not None
         assert gen._steering_vector.shape == (64,)
 
-    @patch("generation.response_generator.AutoModelForCausalLM")
-    @patch("generation.response_generator.AutoTokenizer")
+    @patch("sonde.generation.response_generator.AutoModelForCausalLM")
+    @patch("sonde.generation.response_generator.AutoTokenizer")
     def test_no_steering_by_default(self, mock_tok_cls, mock_model_cls):
         mock_tok = MagicMock()
         mock_tok.pad_token_id = 0
@@ -158,6 +159,24 @@ class TestSteeringHooks:
         expected = torch.tensor([[[0.0, 4.0, 5.0]]])
         assert torch.allclose(result[0], expected, atol=1e-5)
 
+    def test_project_subtract_hook_honors_strength(self):
+        # strength is the ablation fraction: 0.5 removes half the component along v,
+        # matching sonde.interventions.steering.directional_ablation(factor=0.5).
+        vec = torch.tensor([1.0, 0.0, 0.0])
+        hook = _make_steering_hook(vec, mode="project_subtract", strength=0.5)
+
+        h = torch.tensor([[[3.0, 4.0, 5.0]]])  # (1, 1, 3)
+        result = hook(None, None, (h,))
+
+        expected = torch.tensor([[[1.5, 4.0, 5.0]]])  # 3 - 0.5*3 along dim 0
+        assert torch.allclose(result[0], expected, atol=1e-5)
+
+        from sonde.interventions.steering import directional_ablation
+
+        assert torch.allclose(
+            result[0], directional_ablation(h, vec, factor=0.5), atol=1e-5
+        )
+
     def test_additive_hook(self):
         vec = torch.tensor([1.0, 0.0, 0.0])
         hook = _make_steering_hook(vec, mode="additive", strength=5.0)
@@ -179,3 +198,39 @@ class TestSteeringHooks:
 
         assert len(result) == 2
         assert result[1] == extra
+
+    def test_hook_multi_element_tuple_preserves_tail(self):
+        # HF blocks commonly return (hidden, present_key_value, ...).
+        vec = torch.tensor([1.0, 0.0, 0.0])
+        hook = _make_steering_hook(vec, mode="additive", strength=2.0)
+        h = torch.tensor([[[1.0, 2.0, 3.0]]])
+        kv = ("k", "v")
+        result = hook(None, None, (h, kv, "extra"))
+        assert result[1] == kv
+        assert result[2] == "extra"
+        assert torch.allclose(result[0][..., 0], torch.tensor([3.0]))  # 1 + 2*1
+
+    def test_hook_dict_output_steers_first_value(self):
+        vec = torch.tensor([1.0, 0.0])
+        hook = _make_steering_hook(vec, mode="additive", strength=5.0)
+        h = torch.tensor([[[1.0, 2.0]]])
+        out = {"hidden": h, "other": "keep"}
+        result = hook(None, None, out)
+        assert result["other"] == "keep"
+        assert torch.allclose(result["hidden"][..., 0], torch.tensor([6.0]))
+
+
+class TestLoadVectorAmbiguity:
+    def test_empty_key_multi_tensor_raises(self, tmp_path):
+        from safetensors.torch import save_file
+
+        from sonde.generation.response_generator import _load_vector
+
+        path = tmp_path / "v.safetensors"
+        save_file(
+            {"a": torch.tensor([1.0, 0.0]), "b": torch.tensor([0.0, 1.0])}, str(path)
+        )
+        with pytest.raises(ValueError, match="multiple tensors"):
+            _load_vector(str(path), key="")
+        # With an explicit key it loads fine.
+        assert _load_vector(str(path), key="b").shape == (2,)

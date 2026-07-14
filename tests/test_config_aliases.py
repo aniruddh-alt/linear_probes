@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.configs.aliases import resolve_config_alias
+from sonde.core.configs.aliases import resolve_config_alias
 
 
 class TestConfigAliases:

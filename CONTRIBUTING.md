@@ -52,13 +52,13 @@ CI runs all four on every PR. Keep them green locally before pushing.
 
 ## Adding a new probe architecture
 
-1. Subclass `BaseProbe` in `probes/architectures/`.
-2. Register it in `probes/architectures/__init__.py`.
+1. Subclass `BaseProbe` in `sonde/probes/architectures/`.
+2. Register it in `sonde/probes/architectures/__init__.py`.
 3. Add a test in `tests/test_probe_architectures.py` — at minimum, verify it trains and returns metrics on a trivial 2-class dataset.
 
 ## Adding a new activation target
 
-Activation targets are parsed in `activation/`. When adding a new selector syntax or module-hook kind:
+Activation targets are parsed in `sonde/activation/`. When adding a new selector syntax or module-hook kind:
 
 1. Update the parser + the docstring / README selector table.
 2. Cover the new syntax in `tests/test_activation_extractor.py` or a sibling test file.

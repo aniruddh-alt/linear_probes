@@ -4,7 +4,7 @@ import unittest
 
 import torch
 
-from directions.diff_means import DiffMeansEstimator, evaluate_projection
+from sonde.directions.diff_means import DiffMeansEstimator, evaluate_projection
 
 
 class DiffMeansEstimatorTests(unittest.TestCase):

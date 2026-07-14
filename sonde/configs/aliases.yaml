@@ -1,0 +1,3 @@
+# Config alias registry: maps friendly names to canonical config paths.
+# Values are resolved relative to this packaged `sonde/configs` directory.
+quickstart: recipes/quickstart_probe.yaml

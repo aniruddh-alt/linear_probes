@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.configs.params.generation_params import GenerationParams
+from sonde.core.configs.params.generation_params import GenerationParams
 
 
 class TestGenerationParams:
@@ -23,14 +23,14 @@ class TestGenerationParams:
         assert loaded.temperature == 0.7
 
     def test_generate_config_includes_generation(self):
-        from core.configs.generate_config import GenerateConfig
+        from sonde.core.configs.generate_config import GenerateConfig
 
         cfg = GenerateConfig()
         assert hasattr(cfg, "generation")
         assert cfg.generation.max_new_tokens == 256
 
     def test_generate_config_yaml_with_generation(self, tmp_path):
-        from core.configs.generate_config import GenerateConfig
+        from sonde.core.configs.generate_config import GenerateConfig
 
         yaml_text = """
 run_name: gen-test

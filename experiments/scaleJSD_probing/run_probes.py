@@ -39,10 +39,10 @@ from typing import Any
 
 import torch
 
-from activation import ActivationExtractor
-from core.configs import ExtractionParams, ModelParams, ProbeParams, SweepParams
-from dataset import ProbingSampleBuilder
-from probes import LayerProbeSweepRunner
+from sonde.activation import ActivationExtractor
+from sonde.core.configs import ExtractionParams, ModelParams, ProbeParams, SweepParams
+from sonde.dataset import ProbingSampleBuilder
+from sonde.probes import LayerProbeSweepRunner
 
 # ── Model config ─────────────────────────────────────────────────────────────
 
@@ -227,7 +227,7 @@ def run_probe_sweep(
     probe_name: str,
 ):
     """Train probes across all layers and save results."""
-    from dataset.splitting import stratified_train_val_test_split
+    from sonde.dataset.splitting import stratified_train_val_test_split
 
     train_idx, val_idx, test_idx = stratified_train_val_test_split(
         labels=labels,

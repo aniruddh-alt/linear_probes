@@ -69,3 +69,8 @@ checkpoints/
 # R-Judge dissociation experiment outputs
 experiments/rjudge_dissociation/data/
 /.claude
+dist/
+*.egg-info/
+pr2.diff
+.pr-review-telemetry.jsonl
+.pr-review-residue.json

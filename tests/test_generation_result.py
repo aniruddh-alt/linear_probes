@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from generation.types import GenerationResult
+from sonde.generation.types import GenerationResult
 
 
 class TestGenerationResult:

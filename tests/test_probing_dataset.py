@@ -8,8 +8,8 @@ from typing import cast
 import torch
 from safetensors.torch import save_file
 
-from dataset.collate import sequence_collate_fn
-from dataset.probing_dataset import ProbingDataset
+from sonde.dataset.collate import sequence_collate_fn
+from sonde.dataset.probing_dataset import ProbingDataset
 
 
 class ProbingDatasetTests(unittest.TestCase):

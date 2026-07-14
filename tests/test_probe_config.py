@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.configs.probe_config import ProbeConfig
+from sonde.core.configs.probe_config import ProbeConfig
 
 
 class TestProbeConfig:
@@ -41,14 +41,14 @@ class TestProbeConfig:
         assert loaded.action == "probe_sweep"
 
     def test_probe_params_has_probe_type_field(self):
-        from core.configs import ProbeParams
+        from sonde.core.configs import ProbeParams
 
         params = ProbeParams()
         assert params.probe_type == "linear"
         assert params.probe_kwargs == {}
 
     def test_probe_params_accepts_custom_probe_type(self):
-        from core.configs import ProbeParams
+        from sonde.core.configs import ProbeParams
 
         params = ProbeParams(probe_type="attention", probe_kwargs={"foo": 1})
         assert params.probe_type == "attention"

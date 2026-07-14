@@ -1,2 +1,0 @@
-# Config alias registry: maps friendly names to canonical config paths.
-quickstart: configs/recipes/quickstart_probe.yaml
